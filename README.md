@@ -40,7 +40,7 @@ The server will be available at `http://localhost:8080`.
 | `make test` | Run test suite against postgres inside Docker |
 | `make migrate` | Apply all pending database migrations |
 | `make teardown` | Roll back all database migrations |
-| `make generate` | Run SQLBoiler to regenerate ORM models from live schema |
+| `make generate` | Delete generated files, regenerate Bob ORM models, then regenerate Mockery mocks |
 | `make tidy` | Run `go mod tidy` inside Docker (updates `go.sum`) |
 | `make logs` | Tail logs for all running services |
 | `make clean` | Remove containers, volumes, images, and `./bin/` |
@@ -59,11 +59,15 @@ Compose templates live in [deploy/](deploy/). `ENV=prod` uses `docker build` dir
 ## Project structure
 
 ```
-cmd/server/        entry point
-internal/config/   environment-based configuration
-internal/db/       database connection pool
-internal/models/   SQLBoiler-generated ORM (gitignored, regenerate with make generate)
-deploy/            docker-compose templates (local / ci)
+cmd/server/              entry point
+internal/config/         environment-based configuration
+internal/db/             database connection pool
+internal/handler/        HTTP handlers
+internal/repo/           concrete database repository implementations (Bob ORM)
+internal/service/        business logic services and repository interfaces
+internal/models/         Bob-generated ORM models (gitignored, regenerate with make generate)
+deploy/                  docker-compose templates (local / ci)
+migrations/              SQL migration files (golang-migrate)
 ```
 
 ## Migrations
@@ -75,12 +79,15 @@ make migrate    # apply all pending migrations
 make teardown   # roll back all migrations
 ```
 
-## ORM models
+## ORM models and mocks
 
-`internal/models/` is gitignored. After applying your database migrations, regenerate the models with:
+`internal/models/` is gitignored. After applying your database migrations, regenerate models and mocks with:
 
 ```bash
 make generate
 ```
 
-This runs SQLBoiler against the live postgres schema and writes Go types into `internal/models/`.
+This does three things in order:
+1. Deletes all `*.bob.go` and `*.bob_test.go` files
+2. Runs **Bob** (`bobgen`) against the live postgres schema and writes Go types into `internal/models/`
+3. Runs **Mockery** (`go tool mockery`) to regenerate interface mocks under `internal/service/*/mocks/`

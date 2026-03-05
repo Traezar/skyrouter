@@ -5,6 +5,7 @@ package factory
 
 import (
 	"context"
+	"time"
 
 	"github.com/aarondl/opt/null"
 	models "skyrouter/models"
@@ -159,6 +160,8 @@ func (f *Factory) FromExistingWaypoint(m *models.Waypoint) *WaypointTemplate {
 	o.Latitude = func() float64 { return m.Latitude }
 	o.Longitude = func() float64 { return m.Longitude }
 	o.Location = func() null.Val[string] { return m.Location }
+	o.CreatedAt = func() time.Time { return m.CreatedAt }
+	o.UpdatedAt = func() time.Time { return m.UpdatedAt }
 
 	return o
 }

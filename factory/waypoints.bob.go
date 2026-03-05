@@ -6,6 +6,7 @@ package factory
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/aarondl/opt/null"
 	"github.com/aarondl/opt/omit"
@@ -41,6 +42,8 @@ type WaypointTemplate struct {
 	Latitude  func() float64
 	Longitude func() float64
 	Location  func() null.Val[string]
+	CreatedAt func() time.Time
+	UpdatedAt func() time.Time
 
 	f *Factory
 
@@ -83,6 +86,14 @@ func (o WaypointTemplate) BuildSetter() *models.WaypointSetter {
 		val := o.Location()
 		m.Location = omitnull.FromNull(val)
 	}
+	if o.CreatedAt != nil {
+		val := o.CreatedAt()
+		m.CreatedAt = omit.From(val)
+	}
+	if o.UpdatedAt != nil {
+		val := o.UpdatedAt()
+		m.UpdatedAt = omit.From(val)
+	}
 
 	return m
 }
@@ -119,6 +130,12 @@ func (o WaypointTemplate) Build() *models.Waypoint {
 	}
 	if o.Location != nil {
 		m.Location = o.Location()
+	}
+	if o.CreatedAt != nil {
+		m.CreatedAt = o.CreatedAt()
+	}
+	if o.UpdatedAt != nil {
+		m.UpdatedAt = o.UpdatedAt()
 	}
 
 	o.setModelRels(m)
@@ -257,6 +274,8 @@ func (m waypointMods) RandomizeAllColumns(f *faker.Faker) WaypointMod {
 		WaypointMods.RandomLatitude(f),
 		WaypointMods.RandomLongitude(f),
 		WaypointMods.RandomLocation(f),
+		WaypointMods.RandomCreatedAt(f),
+		WaypointMods.RandomUpdatedAt(f),
 	}
 }
 
@@ -433,6 +452,68 @@ func (m waypointMods) RandomLocationNotNull(f *faker.Faker) WaypointMod {
 
 			val := random_string(f)
 			return null.From(val)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m waypointMods) CreatedAt(val time.Time) WaypointMod {
+	return WaypointModFunc(func(_ context.Context, o *WaypointTemplate) {
+		o.CreatedAt = func() time.Time { return val }
+	})
+}
+
+// Set the Column from the function
+func (m waypointMods) CreatedAtFunc(f func() time.Time) WaypointMod {
+	return WaypointModFunc(func(_ context.Context, o *WaypointTemplate) {
+		o.CreatedAt = f
+	})
+}
+
+// Clear any values for the column
+func (m waypointMods) UnsetCreatedAt() WaypointMod {
+	return WaypointModFunc(func(_ context.Context, o *WaypointTemplate) {
+		o.CreatedAt = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m waypointMods) RandomCreatedAt(f *faker.Faker) WaypointMod {
+	return WaypointModFunc(func(_ context.Context, o *WaypointTemplate) {
+		o.CreatedAt = func() time.Time {
+			return random_time_Time(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m waypointMods) UpdatedAt(val time.Time) WaypointMod {
+	return WaypointModFunc(func(_ context.Context, o *WaypointTemplate) {
+		o.UpdatedAt = func() time.Time { return val }
+	})
+}
+
+// Set the Column from the function
+func (m waypointMods) UpdatedAtFunc(f func() time.Time) WaypointMod {
+	return WaypointModFunc(func(_ context.Context, o *WaypointTemplate) {
+		o.UpdatedAt = f
+	})
+}
+
+// Clear any values for the column
+func (m waypointMods) UnsetUpdatedAt() WaypointMod {
+	return WaypointModFunc(func(_ context.Context, o *WaypointTemplate) {
+		o.UpdatedAt = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m waypointMods) RandomUpdatedAt(f *faker.Faker) WaypointMod {
+	return WaypointModFunc(func(_ context.Context, o *WaypointTemplate) {
+		o.UpdatedAt = func() time.Time {
+			return random_time_Time(f)
 		}
 	})
 }

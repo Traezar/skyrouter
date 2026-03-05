@@ -7,6 +7,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jaswdr/faker/v2"
 )
@@ -80,4 +81,15 @@ func random_string(f *faker.Faker, limits ...string) string {
 		val = val[:limitInt]
 	}
 	return val
+}
+
+func random_time_Time(f *faker.Faker, limits ...string) time.Time {
+	if f == nil {
+		f = &defaultFaker
+	}
+
+	year := time.Hour * 24 * 365
+	min := time.Now().Add(-year)
+	max := time.Now().Add(year)
+	return f.Time().TimeBetween(min, max)
 }

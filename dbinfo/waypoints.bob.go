@@ -60,6 +60,24 @@ var Waypoints = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
+		CreatedAt: column{
+			Name:      "created_at",
+			DBType:    "timestamp with time zone",
+			Default:   "now()",
+			Comment:   "",
+			Nullable:  false,
+			Generated: false,
+			AutoIncr:  false,
+		},
+		UpdatedAt: column{
+			Name:      "updated_at",
+			DBType:    "timestamp with time zone",
+			Default:   "now()",
+			Comment:   "",
+			Nullable:  false,
+			Generated: false,
+			AutoIncr:  false,
+		},
 	},
 	Indexes: waypointIndexes{
 		WaypointsPkey: index{
@@ -120,11 +138,13 @@ type waypointColumns struct {
 	Latitude  column
 	Longitude column
 	Location  column
+	CreatedAt column
+	UpdatedAt column
 }
 
 func (c waypointColumns) AsSlice() []column {
 	return []column{
-		c.ID, c.Name, c.Latitude, c.Longitude, c.Location,
+		c.ID, c.Name, c.Latitude, c.Longitude, c.Location, c.CreatedAt, c.UpdatedAt,
 	}
 }
 

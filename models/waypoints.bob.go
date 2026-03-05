@@ -6,6 +6,7 @@ package models
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/aarondl/opt/null"
 	"github.com/aarondl/opt/omit"
@@ -26,6 +27,8 @@ type Waypoint struct {
 	Latitude  float64          `db:"latitude" `
 	Longitude float64          `db:"longitude" `
 	Location  null.Val[string] `db:"location" `
+	CreatedAt time.Time        `db:"created_at" `
+	UpdatedAt time.Time        `db:"updated_at" `
 }
 
 // WaypointSlice is an alias for a slice of pointers to Waypoint.
@@ -41,7 +44,7 @@ type WaypointsQuery = *psql.ViewQuery[*Waypoint, WaypointSlice]
 func buildWaypointColumns(alias string) waypointColumns {
 	return waypointColumns{
 		ColumnsExpr: expr.NewColumnsExpr(
-			"id", "name", "latitude", "longitude", "location",
+			"id", "name", "latitude", "longitude", "location", "created_at", "updated_at",
 		).WithParent("waypoints"),
 		tableAlias: alias,
 		ID:         psql.Quote(alias, "id"),
@@ -49,6 +52,8 @@ func buildWaypointColumns(alias string) waypointColumns {
 		Latitude:   psql.Quote(alias, "latitude"),
 		Longitude:  psql.Quote(alias, "longitude"),
 		Location:   psql.Quote(alias, "location"),
+		CreatedAt:  psql.Quote(alias, "created_at"),
+		UpdatedAt:  psql.Quote(alias, "updated_at"),
 	}
 }
 
@@ -60,6 +65,8 @@ type waypointColumns struct {
 	Latitude   psql.Expression
 	Longitude  psql.Expression
 	Location   psql.Expression
+	CreatedAt  psql.Expression
+	UpdatedAt  psql.Expression
 }
 
 func (c waypointColumns) Alias() string {
@@ -79,10 +86,12 @@ type WaypointSetter struct {
 	Latitude  omit.Val[float64]    `db:"latitude" `
 	Longitude omit.Val[float64]    `db:"longitude" `
 	Location  omitnull.Val[string] `db:"location" `
+	CreatedAt omit.Val[time.Time]  `db:"created_at" `
+	UpdatedAt omit.Val[time.Time]  `db:"updated_at" `
 }
 
 func (s WaypointSetter) SetColumns() []string {
-	vals := make([]string, 0, 5)
+	vals := make([]string, 0, 7)
 	if s.ID.IsValue() {
 		vals = append(vals, "id")
 	}
@@ -97,6 +106,12 @@ func (s WaypointSetter) SetColumns() []string {
 	}
 	if !s.Location.IsUnset() {
 		vals = append(vals, "location")
+	}
+	if s.CreatedAt.IsValue() {
+		vals = append(vals, "created_at")
+	}
+	if s.UpdatedAt.IsValue() {
+		vals = append(vals, "updated_at")
 	}
 	return vals
 }
@@ -117,6 +132,12 @@ func (s WaypointSetter) Overwrite(t *Waypoint) {
 	if !s.Location.IsUnset() {
 		t.Location = s.Location.MustGetNull()
 	}
+	if s.CreatedAt.IsValue() {
+		t.CreatedAt = s.CreatedAt.MustGet()
+	}
+	if s.UpdatedAt.IsValue() {
+		t.UpdatedAt = s.UpdatedAt.MustGet()
+	}
 }
 
 func (s *WaypointSetter) Apply(q *dialect.InsertQuery) {
@@ -125,7 +146,7 @@ func (s *WaypointSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 5)
+		vals := make([]bob.Expression, 7)
 		if s.ID.IsValue() {
 			vals[0] = psql.Arg(s.ID.MustGet())
 		} else {
@@ -156,6 +177,18 @@ func (s *WaypointSetter) Apply(q *dialect.InsertQuery) {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
+		if s.CreatedAt.IsValue() {
+			vals[5] = psql.Arg(s.CreatedAt.MustGet())
+		} else {
+			vals[5] = psql.Raw("DEFAULT")
+		}
+
+		if s.UpdatedAt.IsValue() {
+			vals[6] = psql.Arg(s.UpdatedAt.MustGet())
+		} else {
+			vals[6] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -165,7 +198,7 @@ func (s WaypointSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s WaypointSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 5)
+	exprs := make([]bob.Expression, 0, 7)
 
 	if s.ID.IsValue() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -199,6 +232,20 @@ func (s WaypointSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "location")...),
 			psql.Arg(s.Location),
+		}})
+	}
+
+	if s.CreatedAt.IsValue() {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "created_at")...),
+			psql.Arg(s.CreatedAt),
+		}})
+	}
+
+	if s.UpdatedAt.IsValue() {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "updated_at")...),
+			psql.Arg(s.UpdatedAt),
 		}})
 	}
 
@@ -433,6 +480,8 @@ type waypointWhere[Q psql.Filterable] struct {
 	Latitude  psql.WhereMod[Q, float64]
 	Longitude psql.WhereMod[Q, float64]
 	Location  psql.WhereNullMod[Q, string]
+	CreatedAt psql.WhereMod[Q, time.Time]
+	UpdatedAt psql.WhereMod[Q, time.Time]
 }
 
 func (waypointWhere[Q]) AliasedAs(alias string) waypointWhere[Q] {
@@ -446,5 +495,7 @@ func buildWaypointWhere[Q psql.Filterable](cols waypointColumns) waypointWhere[Q
 		Latitude:  psql.Where[Q, float64](cols.Latitude),
 		Longitude: psql.Where[Q, float64](cols.Longitude),
 		Location:  psql.WhereNull[Q, string](cols.Location),
+		CreatedAt: psql.Where[Q, time.Time](cols.CreatedAt),
+		UpdatedAt: psql.Where[Q, time.Time](cols.UpdatedAt),
 	}
 }

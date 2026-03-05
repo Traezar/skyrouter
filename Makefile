@@ -35,8 +35,10 @@ migrate: ## Apply all pending migrations
 teardown: ## Roll back all migrations
 	$(COMPOSE) run --rm migrate down -all
 
-generate: ## Generate Bob models (requires ENV=local with postgres running)
+generate: ## Regenerate Bob models and Mockery mocks (requires ENV=local with postgres running)
+	find . \( -name "*.bob.go" -o -name "*.bob_test.go" \) -delete
 	$(COMPOSE) run --rm bobgen
+	go tool mockery
 
 tidy: ## Download and tidy Go modules (run once after cloning or adding deps)
 	docker run --rm \
