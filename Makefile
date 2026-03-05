@@ -35,8 +35,8 @@ migrate: ## Apply all pending migrations
 teardown: ## Roll back all migrations
 	$(COMPOSE) run --rm migrate down -all
 
-generate: ## Generate SQLBoiler models (requires ENV=local with postgres running)
-	$(COMPOSE) run --rm sqlboiler
+generate: ## Generate Bob models (requires ENV=local with postgres running)
+	$(COMPOSE) run --rm bobgen
 
 tidy: ## Download and tidy Go modules (run once after cloning or adding deps)
 	docker run --rm \

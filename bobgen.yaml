@@ -1,0 +1,12 @@
+psql:
+  dsn: "" # set via PSQL_DSN env var at generation time
+  except:
+    public.spatial_ref_sys:
+    public.schema_migrations:
+    public.spatial_ref_sys:
+    public.geometry_columns:
+    public.geography_columns
+output: "internal/models"
+pkgname: "models"
+no_tests: false
+schemas:

@@ -37,7 +37,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		if err := database.PingContext(r.Context()); err != nil {
+		if err := database.Ping(r.Context()); err != nil {
 			http.Error(w, `{"status":"degraded","db":"unreachable"}`, http.StatusServiceUnavailable)
 			return
 		}

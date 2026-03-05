@@ -1,7 +1,7 @@
 services:
 
   postgres:
-    image: postgis/postgis:13-3.5
+    image: postgis/postgis:16-3.5
     platform: linux/amd64
     environment:
       POSTGRES_USER: ${DB_USER}
@@ -84,23 +84,21 @@ services:
       postgres:
         condition: service_healthy
 
-  # sqlboiler: generate ORM models from live schema
-  sqlboiler:
+  # bobgen: generate Bob ORM models from live schema
+  bobgen:
     image: golang:1.25-alpine
     working_dir: /app
     command: >
       sh -c "
-        go install github.com/volatiletech/sqlboiler/v4@latest &&
-        go install github.com/volatiletech/sqlboiler/v4/drivers/sqlboiler-psql@latest &&
-        /root/go/bin/sqlboiler psql
+        go install github.com/stephenafamo/bob/gen/bobgen-psql@latest &&
+        printf \"psql:\\n  dsn: postgres://$$DB_USER:$$DB_PASSWORD@postgres:5432/$$DB_NAME?sslmode=$$DB_SSLMODE\\noutput: internal/models\\npkgname: models\\n\" > /tmp/bobgen.yaml &&
+        /root/go/bin/bobgen-psql -c /tmp/bobgen.yaml
       "
     environment:
-      PSQL_HOST: postgres
-      PSQL_PORT: 5432
-      PSQL_USER: ${DB_USER}
-      PSQL_PASS: ${DB_PASSWORD}
-      PSQL_DBNAME: ${DB_NAME}
-      PSQL_SSLMODE: ${DB_SSLMODE:-disable}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
       GOPATH: /root/go
     volumes:
       - .:/app
