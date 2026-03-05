@@ -11,9 +11,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	bobpgx "github.com/stephenafamo/bob/drivers/pgx"
 
 	"skyrouter/internal/config"
 	"skyrouter/internal/db"
+	"skyrouter/internal/handler"
+	"skyrouter/internal/repo"
+	"skyrouter/internal/service/waypoints"
 )
 
 func main() {
@@ -35,6 +39,10 @@ func main() {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+
+	exec := bobpgx.NewPool(database)
+	waypointSvc := waypoints.NewWaypointService(repo.NewWaypointRepo(exec))
+	r.Mount("/waypoints", handler.NewWaypointHandler(waypointSvc).Routes())
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := database.Ping(r.Context()); err != nil {
