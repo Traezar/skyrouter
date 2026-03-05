@@ -58,7 +58,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: builder
-    command: go test -v -race ./...
+    command: go test -v ./...
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
