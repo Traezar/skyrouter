@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1
+
+# ── Stage 1: download modules (cached layer) ─────────────────────────────────
+FROM golang:1.25-alpine AS deps
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
+# ── Stage 2: compile the job binary ──────────────────────────────────────────
+FROM deps AS release
+COPY . .
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -ldflags="-s -w" -o /out/job ./cmd/job
+
+# ── Stage 3: minimal distroless runtime image ─────────────────────────────────
+FROM gcr.io/distroless/static-debian12 AS final
+COPY --from=release /out/job /job
+ENTRYPOINT ["/job"]

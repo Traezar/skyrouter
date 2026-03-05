@@ -10,7 +10,7 @@ COMPOSE := docker compose \
 	-f deploy/docker-compose.$(ENV).yml
 endif
 
-.PHONY: run down build test migrate teardown generate tidy logs clean help
+.PHONY: run down build test migrate teardown generate tidy logs clean job help
 
 run: ## Start services (postgres + app with hot reload)
 	$(COMPOSE) up -d --build
@@ -39,6 +39,9 @@ generate: ## Regenerate Bob models and Mockery mocks (requires ENV=local with po
 	find . \( -name "*.bob.go" -o -name "*.bob_test.go" \) -delete
 	$(COMPOSE) run --rm bobgen
 	go tool mockery
+
+job: ## Run a job locally against postgres (JOB=fetch-waypoints)
+	$(COMPOSE) run --rm job $(JOB)
 
 tidy: ## Download and tidy Go modules (run once after cloning or adding deps)
 	docker run --rm \

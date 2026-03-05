@@ -16,7 +16,7 @@ import (
 	"skyrouter/internal/config"
 	"skyrouter/internal/db"
 	"skyrouter/internal/handler"
-	"skyrouter/internal/repo"
+	waypointrepo "skyrouter/internal/repo/waypoints"
 	"skyrouter/internal/service/waypoints"
 )
 
@@ -41,7 +41,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 
 	exec := bobpgx.NewPool(database)
-	waypointSvc := waypoints.NewWaypointService(repo.NewWaypointRepo(exec))
+	waypointSvc := waypoints.NewWaypointService(waypointrepo.NewWaypointRepo(exec))
 	r.Mount("/waypoints", handler.NewWaypointHandler(waypointSvc).Routes())
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

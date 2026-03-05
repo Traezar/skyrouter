@@ -84,6 +84,29 @@ services:
       postgres:
         condition: service_healthy
 
+  # job: run a named job against postgres (usage: make job JOB=fetch-waypoints)
+  job:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    entrypoint: ["go", "run", "./cmd/job"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      WAYPOINTS_ENDPOINT: ${WAYPOINTS_ENDPOINT}
+      WAYPOINTS_API_KEY: ${WAYPOINTS_API_KEY}
+    volumes:
+      - .:/app
+      - go-modules:/root/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # bobgen: generate Bob ORM models from live schema
   bobgen:
     image: golang:1.25-alpine
