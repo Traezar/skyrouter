@@ -1,0 +1,8 @@
+with-expecter: true
+dir: "{{.InterfaceDir}}/mocks"
+mockname: "Mock{{.InterfaceName}}"
+outpkg: "mocks"
+packages:
+  skyrouter/internal/service/waypoints:
+    interfaces:
+      WaypointRepository:
