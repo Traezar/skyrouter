@@ -1,7 +1,8 @@
 services:
 
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:13-3.5
+    platform: linux/amd64
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -69,6 +70,16 @@ services:
     volumes:
       - .:/app
       - go-modules:/root/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # migrate: run golang-migrate against postgres (pass subcommand: up | down -all)
+  migrate:
+    image: migrate/migrate
+    entrypoint: ["migrate", "-path", "/migrations", "-database", "postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=${DB_SSLMODE:-disable}"]
+    volumes:
+      - ./migrations:/migrations
     depends_on:
       postgres:
         condition: service_healthy

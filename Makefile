@@ -10,7 +10,7 @@ COMPOSE := docker compose \
 	-f deploy/docker-compose.$(ENV).yml
 endif
 
-.PHONY: run down build test generate tidy logs clean help
+.PHONY: run down build test migrate teardown generate tidy logs clean help
 
 run: ## Start services (postgres + app with hot reload)
 	$(COMPOSE) up -d --build
@@ -28,6 +28,12 @@ endif
 
 test: ## Run tests inside Docker with live postgres
 	$(COMPOSE) run --rm test
+
+migrate: ## Apply all pending migrations
+	$(COMPOSE) run --rm migrate up
+
+teardown: ## Roll back all migrations
+	$(COMPOSE) run --rm migrate down -all
 
 generate: ## Generate SQLBoiler models (requires ENV=local with postgres running)
 	$(COMPOSE) run --rm sqlboiler

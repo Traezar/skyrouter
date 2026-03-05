@@ -12,7 +12,8 @@ No local Go installation is required — all build and test commands run inside 
 ```bash
 cp .env.example .env   # copy the template and fill in your values
 make tidy              # generate go.sum (runs go mod tidy inside Docker)
-make run                # start postgres + app with hot reload
+make run               # start postgres + app with hot reload
+make migrate           # apply database migrations
 ```
 
 The server will be available at `http://localhost:8080`.
@@ -37,6 +38,8 @@ The server will be available at `http://localhost:8080`.
 | `make down` | Stop all services and remove volumes |
 | `make build` | Compile `./bin/server` inside Docker (dev binary) |
 | `make test` | Run test suite against postgres inside Docker |
+| `make migrate` | Apply all pending database migrations |
+| `make teardown` | Roll back all database migrations |
 | `make generate` | Run SQLBoiler to regenerate ORM models from live schema |
 | `make tidy` | Run `go mod tidy` inside Docker (updates `go.sum`) |
 | `make logs` | Tail logs for all running services |
@@ -61,6 +64,15 @@ internal/config/   environment-based configuration
 internal/db/       database connection pool
 internal/models/   SQLBoiler-generated ORM (gitignored, regenerate with make generate)
 deploy/            docker-compose templates (local / ci)
+```
+
+## Migrations
+
+SQL migrations live in [migrations/](migrations/) and are managed with [golang-migrate](https://github.com/golang-migrate/migrate). Files follow the naming convention `{version}_{title}.up.sql` / `{version}_{title}.down.sql`.
+
+```bash
+make migrate    # apply all pending migrations
+make teardown   # roll back all migrations
 ```
 
 ## ORM models
