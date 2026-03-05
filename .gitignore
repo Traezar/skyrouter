@@ -26,7 +26,19 @@ go.work.sum
 
 # env file
 .env
+.env.example
+
+# Compiled binaries and air tmp dir
+bin/
+tmp/
+
+# SQLBoiler generated models (regenerate with: make generate)
+internal/models/
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store

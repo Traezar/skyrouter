@@ -1,0 +1,49 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-ci}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ci}
+      POSTGRES_DB: ${DB_NAME:-skyrouter_test}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ci} -d ${DB_NAME:-skyrouter_test}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # build: compile binary to ./bin/server (verifies the project compiles cleanly)
+  build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    command: go build -o /output/server ./cmd/server
+    volumes:
+      - .:/app
+      - ./bin:/output
+      - go-modules:/root/go/pkg/mod
+
+  # test: run full test suite against postgres
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    command: go test -v -race ./...
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-ci}
+      DB_PASSWORD: ${DB_PASSWORD:-ci}
+      DB_NAME: ${DB_NAME:-skyrouter_test}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+    volumes:
+      - .:/app
+      - go-modules:/root/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  go-modules:

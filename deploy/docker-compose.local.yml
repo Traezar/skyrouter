@@ -1,0 +1,105 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT_EXPOSE:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # app: live-reloading dev server via air
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    command: air -c .air.toml
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      PORT: ${PORT:-8080}
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - .:/app
+      - go-modules:/root/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # build: compile binary to ./bin/server on the host
+  build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    command: go build -o /output/server ./cmd/server
+    volumes:
+      - .:/app
+      - ./bin:/output
+      - go-modules:/root/go/pkg/mod
+
+  # test: run full test suite against postgres
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    command: go test -v -race ./...
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+    volumes:
+      - .:/app
+      - go-modules:/root/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # sqlboiler: generate ORM models from live schema
+  sqlboiler:
+    image: golang:1.25-alpine
+    working_dir: /app
+    command: >
+      sh -c "
+        go install github.com/volatiletech/sqlboiler/v4@latest &&
+        go install github.com/volatiletech/sqlboiler/v4/drivers/sqlboiler-psql@latest &&
+        /root/go/bin/sqlboiler psql
+      "
+    environment:
+      PSQL_HOST: postgres
+      PSQL_PORT: 5432
+      PSQL_USER: ${DB_USER}
+      PSQL_PASS: ${DB_PASSWORD}
+      PSQL_DBNAME: ${DB_NAME}
+      PSQL_SSLMODE: ${DB_SSLMODE:-disable}
+      GOPATH: /root/go
+    volumes:
+      - .:/app
+      - go-modules:/root/go/pkg/mod
+      - go-bin:/root/go/bin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  go-modules:
+  go-bin:

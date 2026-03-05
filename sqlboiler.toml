@@ -1,0 +1,20 @@
+# SQLBoiler configuration
+# Database connection values are overridden at runtime by PSQL_* environment
+# variables (PSQL_HOST, PSQL_PORT, PSQL_USER, PSQL_PASS, PSQL_DBNAME,
+# PSQL_SSLMODE).  The values below are only used when the env vars are absent.
+
+pkgname             = "models"
+output              = "internal/models"
+wipe                = true
+add-global-variants = false
+add-panic-variants  = false
+no-tests            = false
+
+[psql]
+  host    = "localhost"
+  port    = 5432
+  user    = "skyrouter"
+  pass    = ""
+  dbname  = "skyrouter"
+  sslmode = "disable"
+  schema  = "public"
