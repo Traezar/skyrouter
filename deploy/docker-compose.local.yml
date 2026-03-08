@@ -114,14 +114,10 @@ services:
     command: >
       sh -c "
         go install github.com/stephenafamo/bob/gen/bobgen-psql@latest &&
-        printf \"psql:\\n  dsn: postgres://$$DB_USER:$$DB_PASSWORD@postgres:5432/$$DB_NAME?sslmode=$$DB_SSLMODE\\noutput: internal/models\\npkgname: models\\n\" > /tmp/bobgen.yaml &&
-        /root/go/bin/bobgen-psql -c /tmp/bobgen.yaml
+        /root/go/bin/bobgen-psql -c /app/bobgen.yaml
       "
     environment:
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME}
-      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      PSQL_DSN: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=${DB_SSLMODE:-disable}
       GOPATH: /root/go
     volumes:
       - .:/app

@@ -3,10 +3,18 @@ psql:
   except:
     public.spatial_ref_sys:
     public.schema_migrations:
-    public.spatial_ref_sys:
     public.geometry_columns:
-    public.geography_columns
-output: "internal/models"
+    public.geography_columns:
+output: "models"
 pkgname: "models"
 no_tests: false
 schemas:
+plugins:
+  dbinfo:
+    disabled: true
+  enums:
+    disabled: true
+  factory:
+    disabled: true
+  dberrors:
+    disabled: true

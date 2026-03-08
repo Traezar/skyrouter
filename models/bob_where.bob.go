@@ -17,23 +17,32 @@ var (
 )
 
 func Where[Q psql.Filterable]() struct {
-	GeographyColumns geographyColumnWhere[Q]
-	GeometryColumns  geometryColumnWhere[Q]
-	SchemaMigrations schemaMigrationWhere[Q]
-	SpatialRefSys    spatialRefSyWhere[Q]
-	Waypoints        waypointWhere[Q]
+	FlightRouteElements flightRouteElementWhere[Q]
+	FlightRouteVersions flightRouteVersionWhere[Q]
+	Flights             flightWhere[Q]
+	GeographyColumns    geographyColumnWhere[Q]
+	GeometryColumns     geometryColumnWhere[Q]
+	SchemaMigrations    schemaMigrationWhere[Q]
+	SpatialRefSys       spatialRefSyWhere[Q]
+	Waypoints           waypointWhere[Q]
 } {
 	return struct {
-		GeographyColumns geographyColumnWhere[Q]
-		GeometryColumns  geometryColumnWhere[Q]
-		SchemaMigrations schemaMigrationWhere[Q]
-		SpatialRefSys    spatialRefSyWhere[Q]
-		Waypoints        waypointWhere[Q]
+		FlightRouteElements flightRouteElementWhere[Q]
+		FlightRouteVersions flightRouteVersionWhere[Q]
+		Flights             flightWhere[Q]
+		GeographyColumns    geographyColumnWhere[Q]
+		GeometryColumns     geometryColumnWhere[Q]
+		SchemaMigrations    schemaMigrationWhere[Q]
+		SpatialRefSys       spatialRefSyWhere[Q]
+		Waypoints           waypointWhere[Q]
 	}{
-		GeographyColumns: buildGeographyColumnWhere[Q](GeographyColumns.Columns),
-		GeometryColumns:  buildGeometryColumnWhere[Q](GeometryColumns.Columns),
-		SchemaMigrations: buildSchemaMigrationWhere[Q](SchemaMigrations.Columns),
-		SpatialRefSys:    buildSpatialRefSyWhere[Q](SpatialRefSys.Columns),
-		Waypoints:        buildWaypointWhere[Q](Waypoints.Columns),
+		FlightRouteElements: buildFlightRouteElementWhere[Q](FlightRouteElements.Columns),
+		FlightRouteVersions: buildFlightRouteVersionWhere[Q](FlightRouteVersions.Columns),
+		Flights:             buildFlightWhere[Q](Flights.Columns),
+		GeographyColumns:    buildGeographyColumnWhere[Q](GeographyColumns.Columns),
+		GeometryColumns:     buildGeometryColumnWhere[Q](GeometryColumns.Columns),
+		SchemaMigrations:    buildSchemaMigrationWhere[Q](SchemaMigrations.Columns),
+		SpatialRefSys:       buildSpatialRefSyWhere[Q](SpatialRefSys.Columns),
+		Waypoints:           buildWaypointWhere[Q](Waypoints.Columns),
 	}
 }

@@ -42,3 +42,7 @@ internal/models/
 
 # macOS
 .DS_Store
+
+
+#scratchfiles
+scratch*.json

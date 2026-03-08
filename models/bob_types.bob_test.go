@@ -3,10 +3,28 @@
 
 package models
 
-import "github.com/stephenafamo/bob"
+import (
+	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
+
+	"github.com/gofrs/uuid/v5"
+	"github.com/lib/pq"
+	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/types"
+)
 
 // Set the testDB to enable tests that use the database
 var testDB bob.Transactor[bob.Tx]
+
+// Make sure the type FlightRouteElement runs hooks after queries
+var _ bob.HookableType = &FlightRouteElement{}
+
+// Make sure the type FlightRouteVersion runs hooks after queries
+var _ bob.HookableType = &FlightRouteVersion{}
+
+// Make sure the type Flight runs hooks after queries
+var _ bob.HookableType = &Flight{}
 
 // Make sure the type GeographyColumn runs hooks after queries
 var _ bob.HookableType = &GeographyColumn{}
@@ -22,3 +40,21 @@ var _ bob.HookableType = &SpatialRefSy{}
 
 // Make sure the type Waypoint runs hooks after queries
 var _ bob.HookableType = &Waypoint{}
+
+// Make sure the type uuid.UUID satisfies database/sql.Scanner
+var _ sql.Scanner = (*uuid.UUID)(nil)
+
+// Make sure the type uuid.UUID satisfies database/sql/driver.Valuer
+var _ driver.Valuer = *new(uuid.UUID)
+
+// Make sure the type pq.StringArray satisfies database/sql.Scanner
+var _ sql.Scanner = (*pq.StringArray)(nil)
+
+// Make sure the type pq.StringArray satisfies database/sql/driver.Valuer
+var _ driver.Valuer = *new(pq.StringArray)
+
+// Make sure the type types.JSON[json.RawMessage] satisfies database/sql.Scanner
+var _ sql.Scanner = (*types.JSON[json.RawMessage])(nil)
+
+// Make sure the type types.JSON[json.RawMessage] satisfies database/sql/driver.Valuer
+var _ driver.Valuer = *new(types.JSON[json.RawMessage])

@@ -16,10 +16,18 @@ import (
 
 var Preload = getPreloaders()
 
-type preloaders struct{}
+type preloaders struct {
+	FlightRouteElement flightRouteElementPreloader
+	FlightRouteVersion flightRouteVersionPreloader
+	Flight             flightPreloader
+}
 
 func getPreloaders() preloaders {
-	return preloaders{}
+	return preloaders{
+		FlightRouteElement: buildFlightRouteElementPreloader(),
+		FlightRouteVersion: buildFlightRouteVersionPreloader(),
+		Flight:             buildFlightPreloader(),
+	}
 }
 
 var (
@@ -28,10 +36,18 @@ var (
 	UpdateThenLoad = getThenLoaders[*dialect.UpdateQuery]()
 )
 
-type thenLoaders[Q orm.Loadable] struct{}
+type thenLoaders[Q orm.Loadable] struct {
+	FlightRouteElement flightRouteElementThenLoader[Q]
+	FlightRouteVersion flightRouteVersionThenLoader[Q]
+	Flight             flightThenLoader[Q]
+}
 
 func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
-	return thenLoaders[Q]{}
+	return thenLoaders[Q]{
+		FlightRouteElement: buildFlightRouteElementThenLoader[Q](),
+		FlightRouteVersion: buildFlightRouteVersionThenLoader[Q](),
+		Flight:             buildFlightThenLoader[Q](),
+	}
 }
 
 func thenLoadBuilder[Q orm.Loadable, T any](name string, f func(context.Context, bob.Executor, T, ...bob.Mod[*dialect.SelectQuery]) error) func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q] {
