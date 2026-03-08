@@ -25,6 +25,16 @@ services:
       - ./bin:/output
       - go-modules:/root/go/pkg/mod
 
+  # migrate-up: apply all migrations before tests run
+  migrate-up:
+    image: migrate/migrate
+    entrypoint: ["migrate", "-path", "/migrations", "-database", "postgres://${DB_USER:-ci}:${DB_PASSWORD:-ci}@postgres:5432/${DB_NAME:-skyrouter_test}?sslmode=${DB_SSLMODE:-disable}", "up"]
+    volumes:
+      - ./migrations:/migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # test: run full test suite against postgres
   test:
     build:
@@ -43,8 +53,8 @@ services:
       - .:/app
       - go-modules:/root/go/pkg/mod
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate-up:
+        condition: service_completed_successfully
 
   # migrate: run golang-migrate against postgres (pass subcommand: up | down -all)
   migrate:
