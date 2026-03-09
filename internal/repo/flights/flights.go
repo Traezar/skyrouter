@@ -206,45 +206,59 @@ func (r *FlightRepo) List(ctx context.Context, filter svcflights.ListFlightsFilt
 	n := 1
 
 	if filter.Callsign != "" {
-		conds = append(conds, fmt.Sprintf("callsign ILIKE $%d", n))
+		conds = append(conds, fmt.Sprintf("f.callsign ILIKE $%d", n))
 		args = append(args, "%"+filter.Callsign+"%")
 		n++
 	}
 	if filter.DepartureAerodrome != "" {
-		conds = append(conds, fmt.Sprintf("departure_aerodrome = $%d", n))
+		conds = append(conds, fmt.Sprintf("f.departure_aerodrome = $%d", n))
 		args = append(args, filter.DepartureAerodrome)
 		n++
 	}
 	if filter.DestinationAerodrome != "" {
-		conds = append(conds, fmt.Sprintf("destination_aerodrome = $%d", n))
+		conds = append(conds, fmt.Sprintf("f.destination_aerodrome = $%d", n))
 		args = append(args, filter.DestinationAerodrome)
 		n++
 	}
 	if filter.Operator != "" {
-		conds = append(conds, fmt.Sprintf("operator = $%d", n))
+		conds = append(conds, fmt.Sprintf("f.operator = $%d", n))
 		args = append(args, filter.Operator)
 		n++
 	}
 	if filter.DateFrom != nil {
-		conds = append(conds, fmt.Sprintf("date_of_flight >= $%d", n))
+		conds = append(conds, fmt.Sprintf("f.date_of_flight >= $%d", n))
 		args = append(args, *filter.DateFrom)
 		n++
 	}
 	if filter.DateTo != nil {
-		conds = append(conds, fmt.Sprintf("date_of_flight <= $%d", n))
+		conds = append(conds, fmt.Sprintf("f.date_of_flight <= $%d", n))
 		args = append(args, *filter.DateTo)
 		n++
 	}
 	_ = n
 
-	query := `SELECT id, callsign, flight_type, operator, aircraft_type, aircraft_registration,
-		departure_aerodrome, date_of_flight, scheduled_departure_at,
-		destination_aerodrome, scheduled_arrival_at
-	FROM flights`
+	// LATERAL subquery picks the latest route version per flight.
+	// Each flight row is repeated once per route element (or once with NULL cols if no route).
+	query := `
+SELECT
+	f.id, f.callsign, f.flight_type, f.operator, f.aircraft_type, f.aircraft_registration,
+	f.departure_aerodrome, f.date_of_flight, f.scheduled_departure_at,
+	f.destination_aerodrome, f.scheduled_arrival_at,
+	fre.seq_num, fre.waypoint_name, fre.airway, w.latitude, w.longitude
+FROM flights f
+LEFT JOIN LATERAL (
+	SELECT id FROM flight_route_versions
+	WHERE flight_id = f.id
+	ORDER BY version DESC
+	LIMIT 1
+) lv ON true
+LEFT JOIN flight_route_elements fre ON fre.route_version_id = lv.id
+LEFT JOIN waypoints w ON w.name = fre.waypoint_name`
+
 	if len(conds) > 0 {
 		query += " WHERE " + strings.Join(conds, " AND ")
 	}
-	query += " ORDER BY date_of_flight DESC, scheduled_departure_at DESC NULLS LAST"
+	query += " ORDER BY f.date_of_flight DESC, f.scheduled_departure_at DESC NULLS LAST, fre.seq_num ASC"
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -252,43 +266,89 @@ func (r *FlightRepo) List(ctx context.Context, filter svcflights.ListFlightsFilt
 	}
 	defer rows.Close()
 
+	// index tracks insertion order so flights stay sorted as returned by the query.
 	var result []svcflights.Flight
+	index := map[string]int{}
+
 	for rows.Next() {
-		var f svcflights.Flight
 		var (
+			id                   string
+			callsign             string
 			flightType           sql.NullString
 			operator             sql.NullString
 			aircraftType         sql.NullString
 			aircraftRegistration sql.NullString
+			departureAerodrome   string
+			dateOfFlight         sql.NullTime
 			scheduledDepartureAt sql.NullTime
+			destinationAerodrome string
 			scheduledArrivalAt   sql.NullTime
+			seqNum               sql.NullInt64
+			waypointName         sql.NullString
+			airway               sql.NullString
+			latitude             sql.NullFloat64
+			longitude            sql.NullFloat64
 		)
 		if err := rows.Scan(
-			&f.ID, &f.Callsign, &flightType, &operator, &aircraftType, &aircraftRegistration,
-			&f.DepartureAerodrome, &f.DateOfFlight, &scheduledDepartureAt,
-			&f.DestinationAerodrome, &scheduledArrivalAt,
+			&id, &callsign, &flightType, &operator, &aircraftType, &aircraftRegistration,
+			&departureAerodrome, &dateOfFlight, &scheduledDepartureAt,
+			&destinationAerodrome, &scheduledArrivalAt,
+			&seqNum, &waypointName, &airway, &latitude, &longitude,
 		); err != nil {
 			return nil, err
 		}
-		if flightType.Valid {
-			f.FlightType = &flightType.String
+
+		idx, exists := index[id]
+		if !exists {
+			f := svcflights.Flight{
+				ID:                   id,
+				Callsign:             callsign,
+				DepartureAerodrome:   departureAerodrome,
+				DestinationAerodrome: destinationAerodrome,
+				Route:                []svcflights.RouteElement{},
+			}
+			if dateOfFlight.Valid {
+				f.DateOfFlight = dateOfFlight.Time
+			}
+			if flightType.Valid {
+				f.FlightType = &flightType.String
+			}
+			if operator.Valid {
+				f.Operator = &operator.String
+			}
+			if aircraftType.Valid {
+				f.AircraftType = &aircraftType.String
+			}
+			if aircraftRegistration.Valid {
+				f.AircraftRegistration = &aircraftRegistration.String
+			}
+			if scheduledDepartureAt.Valid {
+				f.ScheduledDepartureAt = &scheduledDepartureAt.Time
+			}
+			if scheduledArrivalAt.Valid {
+				f.ScheduledArrivalAt = &scheduledArrivalAt.Time
+			}
+			result = append(result, f)
+			idx = len(result) - 1
+			index[id] = idx
 		}
-		if operator.Valid {
-			f.Operator = &operator.String
+
+		if seqNum.Valid {
+			el := svcflights.RouteElement{
+				SeqNum:       int(seqNum.Int64),
+				WaypointName: waypointName.String,
+			}
+			if airway.Valid {
+				el.Airway = &airway.String
+			}
+			if latitude.Valid {
+				el.Latitude = &latitude.Float64
+			}
+			if longitude.Valid {
+				el.Longitude = &longitude.Float64
+			}
+			result[idx].Route = append(result[idx].Route, el)
 		}
-		if aircraftType.Valid {
-			f.AircraftType = &aircraftType.String
-		}
-		if aircraftRegistration.Valid {
-			f.AircraftRegistration = &aircraftRegistration.String
-		}
-		if scheduledDepartureAt.Valid {
-			f.ScheduledDepartureAt = &scheduledDepartureAt.Time
-		}
-		if scheduledArrivalAt.Valid {
-			f.ScheduledArrivalAt = &scheduledArrivalAt.Time
-		}
-		result = append(result, f)
 	}
 	return result, rows.Err()
 }

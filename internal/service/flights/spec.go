@@ -5,19 +5,29 @@ import (
 	"time"
 )
 
+// RouteElement is a single waypoint in a flight's route, ordered by sequence.
+type RouteElement struct {
+	SeqNum       int      `json:"seqNum"`
+	WaypointName string   `json:"waypointName"`
+	Airway       *string  `json:"airway,omitempty"`
+	Latitude     *float64 `json:"latitude,omitempty"`
+	Longitude    *float64 `json:"longitude,omitempty"`
+}
+
 // Flight is the read model returned by the service.
 type Flight struct {
-	ID                   string     `json:"id"`
-	Callsign             string     `json:"callsign"`
-	FlightType           *string    `json:"flightType,omitempty"`
-	Operator             *string    `json:"operator,omitempty"`
-	AircraftType         *string    `json:"aircraftType,omitempty"`
-	AircraftRegistration *string    `json:"aircraftRegistration,omitempty"`
-	DepartureAerodrome   string     `json:"departureAerodrome"`
-	DateOfFlight         time.Time  `json:"dateOfFlight"`
-	ScheduledDepartureAt *time.Time `json:"scheduledDepartureAt,omitempty"`
-	DestinationAerodrome string     `json:"destinationAerodrome"`
-	ScheduledArrivalAt   *time.Time `json:"scheduledArrivalAt,omitempty"`
+	ID                   string         `json:"id"`
+	Callsign             string         `json:"callsign"`
+	FlightType           *string        `json:"flightType,omitempty"`
+	Operator             *string        `json:"operator,omitempty"`
+	AircraftType         *string        `json:"aircraftType,omitempty"`
+	AircraftRegistration *string        `json:"aircraftRegistration,omitempty"`
+	DepartureAerodrome   string         `json:"departureAerodrome"`
+	DateOfFlight         time.Time      `json:"dateOfFlight"`
+	ScheduledDepartureAt *time.Time     `json:"scheduledDepartureAt,omitempty"`
+	DestinationAerodrome string         `json:"destinationAerodrome"`
+	ScheduledArrivalAt   *time.Time     `json:"scheduledArrivalAt,omitempty"`
+	Route                []RouteElement `json:"route"`
 }
 
 // ListFlightsFilter holds optional search parameters for listing flights.
