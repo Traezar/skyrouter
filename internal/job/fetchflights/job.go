@@ -19,20 +19,20 @@ import (
 // API response structs — field names match the upstream JSON exactly.
 
 type apiFlight struct {
-	ID                     string      `json:"_id"`
-	MessageType            string      `json:"messageType"`
-	AircraftIdentification string      `json:"aircraftIdentification"`
-	FlightType             *string     `json:"flightType"`
-	AircraftOperating      *string     `json:"aircraftOperating"`
-	SRC                    *string     `json:"src"`
-	Remark                 *string     `json:"remark"`
-	Aircraft               apiAircraft `json:"aircraft"`
-	Departure              apiDeparture `json:"departure"`
-	Arrival                apiArrival  `json:"arrival"`
-	Enroute                *apiEnroute `json:"enroute"`
+	ID                     string         `json:"_id"`
+	MessageType            string         `json:"messageType"`
+	AircraftIdentification string         `json:"aircraftIdentification"`
+	FlightType             *string        `json:"flightType"`
+	AircraftOperating      *string        `json:"aircraftOperating"`
+	SRC                    *string        `json:"src"`
+	Remark                 *string        `json:"remark"`
+	Aircraft               apiAircraft    `json:"aircraft"`
+	Departure              apiDeparture   `json:"departure"`
+	Arrival                apiArrival     `json:"arrival"`
+	Enroute                *apiEnroute    `json:"enroute"`
 	FiledRoute             *apiFiledRoute `json:"filedRoute"`
-	ReceptionTime          *string     `json:"receptionTime"`
-	LastUpdatedTimeStamp   *string     `json:"lastUpdatedTimeStamp"`
+	ReceptionTime          *string        `json:"receptionTime"`
+	LastUpdatedTimeStamp   *string        `json:"lastUpdatedTimeStamp"`
 }
 
 type apiAircraft struct {
@@ -61,13 +61,13 @@ type apiEnroute struct {
 }
 
 type apiFiledRoute struct {
-	FlightRuleCategory           *string           `json:"flightRuleCategory"`
-	CruisingSpeed                *string           `json:"cruisingSpeed"`
-	CruisingLevel                *string           `json:"cruisingLevel"`
-	RouteText                    *string           `json:"routeText"`
-	TotalEstimatedElapsedTime    *string           `json:"totalEstimatedElapsedTime"`
-	OtherEstimatedElapsedTime    []string          `json:"otherEstimatedElapsedTime"`
-	RouteElement                 []apiRouteElement `json:"routeElement"`
+	FlightRuleCategory        *string           `json:"flightRuleCategory"`
+	CruisingSpeed             *string           `json:"cruisingSpeed"`
+	CruisingLevel             *string           `json:"cruisingLevel"`
+	RouteText                 *string           `json:"routeText"`
+	TotalEstimatedElapsedTime *string           `json:"totalEstimatedElapsedTime"`
+	OtherEstimatedElapsedTime []string          `json:"otherEstimatedElapsedTime"`
+	RouteElement              []apiRouteElement `json:"routeElement"`
 }
 
 type apiRouteElement struct {

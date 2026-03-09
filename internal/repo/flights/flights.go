@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/gofrs/uuid/v5"
+
+	svcflights "skyrouter/internal/service/flights"
 )
 
 type FlightRepo struct {
@@ -197,6 +200,95 @@ func (r *FlightRepo) insertRouteElementsChunk(ctx context.Context, versionID uui
 	return nil
 }
 
-// nullableTime is a helper to scan a nullable time into sql.NullTime for use in QueryContext.
-// Not used directly but kept for reference if raw scanning is needed elsewhere.
-var _ = sql.NullTime{}
+func (r *FlightRepo) List(ctx context.Context, filter svcflights.ListFlightsFilter) ([]svcflights.Flight, error) {
+	conds := []string{}
+	args := []any{}
+	n := 1
+
+	if filter.Callsign != "" {
+		conds = append(conds, fmt.Sprintf("callsign ILIKE $%d", n))
+		args = append(args, "%"+filter.Callsign+"%")
+		n++
+	}
+	if filter.DepartureAerodrome != "" {
+		conds = append(conds, fmt.Sprintf("departure_aerodrome = $%d", n))
+		args = append(args, filter.DepartureAerodrome)
+		n++
+	}
+	if filter.DestinationAerodrome != "" {
+		conds = append(conds, fmt.Sprintf("destination_aerodrome = $%d", n))
+		args = append(args, filter.DestinationAerodrome)
+		n++
+	}
+	if filter.Operator != "" {
+		conds = append(conds, fmt.Sprintf("operator = $%d", n))
+		args = append(args, filter.Operator)
+		n++
+	}
+	if filter.DateFrom != nil {
+		conds = append(conds, fmt.Sprintf("date_of_flight >= $%d", n))
+		args = append(args, *filter.DateFrom)
+		n++
+	}
+	if filter.DateTo != nil {
+		conds = append(conds, fmt.Sprintf("date_of_flight <= $%d", n))
+		args = append(args, *filter.DateTo)
+		n++
+	}
+	_ = n
+
+	query := `SELECT id, callsign, flight_type, operator, aircraft_type, aircraft_registration,
+		departure_aerodrome, date_of_flight, scheduled_departure_at,
+		destination_aerodrome, scheduled_arrival_at
+	FROM flights`
+	if len(conds) > 0 {
+		query += " WHERE " + strings.Join(conds, " AND ")
+	}
+	query += " ORDER BY date_of_flight DESC, scheduled_departure_at DESC NULLS LAST"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []svcflights.Flight
+	for rows.Next() {
+		var f svcflights.Flight
+		var (
+			flightType           sql.NullString
+			operator             sql.NullString
+			aircraftType         sql.NullString
+			aircraftRegistration sql.NullString
+			scheduledDepartureAt sql.NullTime
+			scheduledArrivalAt   sql.NullTime
+		)
+		if err := rows.Scan(
+			&f.ID, &f.Callsign, &flightType, &operator, &aircraftType, &aircraftRegistration,
+			&f.DepartureAerodrome, &f.DateOfFlight, &scheduledDepartureAt,
+			&f.DestinationAerodrome, &scheduledArrivalAt,
+		); err != nil {
+			return nil, err
+		}
+		if flightType.Valid {
+			f.FlightType = &flightType.String
+		}
+		if operator.Valid {
+			f.Operator = &operator.String
+		}
+		if aircraftType.Valid {
+			f.AircraftType = &aircraftType.String
+		}
+		if aircraftRegistration.Valid {
+			f.AircraftRegistration = &aircraftRegistration.String
+		}
+		if scheduledDepartureAt.Valid {
+			f.ScheduledDepartureAt = &scheduledDepartureAt.Time
+		}
+		if scheduledArrivalAt.Valid {
+			f.ScheduledArrivalAt = &scheduledArrivalAt.Time
+		}
+		result = append(result, f)
+	}
+	return result, rows.Err()
+}

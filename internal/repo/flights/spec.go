@@ -8,6 +8,8 @@ import (
 	"github.com/aarondl/opt/null"
 	"github.com/lib/pq"
 	"github.com/stephenafamo/scan"
+
+	svcflights "skyrouter/internal/service/flights"
 )
 
 // RouteElementInput represents a single element in a flight route.
@@ -80,6 +82,7 @@ type UpsertFlightInput struct {
 // FlightRepository is the interface this package satisfies.
 type FlightRepository interface {
 	UpsertFlights(ctx context.Context, inputs []UpsertFlightInput) error
+	List(ctx context.Context, filter svcflights.ListFlightsFilter) ([]svcflights.Flight, error)
 }
 
 // Executor is the database interface FlightRepo depends on.
