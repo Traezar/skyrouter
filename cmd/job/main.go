@@ -12,12 +12,15 @@ import (
 	"skyrouter/internal/config"
 	"skyrouter/internal/db"
 	"skyrouter/internal/job"
+	"skyrouter/internal/job/fetchflights"
 	"skyrouter/internal/job/fetchwaypoints"
+	repoFlights "skyrouter/internal/repo/flights"
 	repoWaypoints "skyrouter/internal/repo/waypoints"
 )
 
 var registry = map[string]job.Runner{
 	"fetch-waypoints": fetchwaypoints.Run,
+	"fetch-flights":   fetchflights.Run,
 }
 
 func main() {
@@ -47,6 +50,7 @@ func main() {
 
 	deps := job.Repos{
 		Waypoints: repoWaypoints.NewWaypointRepo(bobpgx.NewPool(pool)),
+		Flights:   repoFlights.NewFlightRepo(bobpgx.NewPool(pool)),
 	}
 
 	ctx := context.Background()

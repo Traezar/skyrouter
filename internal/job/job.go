@@ -3,6 +3,7 @@ package job
 import (
 	"context"
 
+	repoFlights "skyrouter/internal/repo/flights"
 	repoWaypoints "skyrouter/internal/repo/waypoints"
 )
 
@@ -12,4 +13,5 @@ type Runner func(ctx context.Context, deps Repos) error
 // Repos holds shared resources available to all jobs.
 type Repos struct {
 	Waypoints repoWaypoints.WaypointRepository
+	Flights   repoFlights.FlightRepository
 }

@@ -100,6 +100,8 @@ services:
       DB_SSLMODE: ${DB_SSLMODE:-disable}
       WAYPOINTS_ENDPOINT: ${WAYPOINTS_ENDPOINT}
       WAYPOINTS_API_KEY: ${WAYPOINTS_API_KEY}
+      FLIGHTS_ENDPOINT: ${FLIGHTS_ENDPOINT}
+      FLIGHTS_API_KEY: ${FLIGHTS_API_KEY}
     volumes:
       - .:/app
       - go-modules:/root/go/pkg/mod
