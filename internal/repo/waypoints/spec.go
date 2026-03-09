@@ -7,13 +7,12 @@ import (
 	"github.com/stephenafamo/scan"
 
 	svcwaypoints "skyrouter/internal/service/waypoints"
-	"skyrouter/models"
 )
 
 // WaypointRepository is the interface this package satisfies.
 type WaypointRepository interface {
-	List(ctx context.Context) (models.WaypointSlice, error)
-	GetByID(ctx context.Context, id int32) (*models.Waypoint, error)
+	List(ctx context.Context, filter svcwaypoints.ListWaypointsFilter) ([]svcwaypoints.Waypoint, error)
+	GetByID(ctx context.Context, id int32) (*svcwaypoints.Waypoint, error)
 	BulkUpsert(ctx context.Context, inputs []svcwaypoints.UpsertWaypointInput) error
 }
 

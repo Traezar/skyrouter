@@ -8,34 +8,33 @@ import (
 
 	"skyrouter/internal/service/waypoints"
 	"skyrouter/internal/service/waypoints/mocks"
-	"skyrouter/models"
 )
 
 func TestWaypointService_ListWaypoints(t *testing.T) {
 	tests := []struct {
-		name       string
-		expectedResult models.WaypointSlice
-		expectedError    error
-		wantLen    int
+		name           string
+		expectedResult []waypoints.Waypoint
+		expectedError  error
+		wantLen        int
 		actualError    bool
 	}{
 		{
 			name: "returns all waypoints",
-			expectedResult: models.WaypointSlice{
+			expectedResult: []waypoints.Waypoint{
 				{ID: 1, Name: "Alpha", Latitude: 10.0, Longitude: 20.0},
 				{ID: 2, Name: "Bravo", Latitude: 30.0, Longitude: 40.0},
 			},
 			wantLen: 2,
 		},
 		{
-			name:       "returns empty slice",
-			expectedResult: models.WaypointSlice{},
-			wantLen:    0,
+			name:           "returns empty slice",
+			expectedResult: []waypoints.Waypoint{},
+			wantLen:        0,
 		},
 		{
-			name:    "propagates repo error",
+			name:          "propagates repo error",
 			expectedError: errors.New("db error"),
-			actualError: true,
+			actualError:   true,
 		},
 	}
 
@@ -43,10 +42,11 @@ func TestWaypointService_ListWaypoints(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			mockRepo := mocks.NewMockWaypointRepository(t)
-			mockRepo.EXPECT().List(ctx).Return(tt.expectedResult, tt.expectedError)
+			filter := waypoints.ListWaypointsFilter{}
+			mockRepo.EXPECT().List(ctx, filter).Return(tt.expectedResult, tt.expectedError)
 
 			svc := waypoints.NewWaypointService(mockRepo)
-			result, err := svc.ListWaypoints(ctx)
+			result, err := svc.ListWaypoints(ctx, filter)
 
 			if tt.actualError {
 				if err == nil {
@@ -66,28 +66,28 @@ func TestWaypointService_ListWaypoints(t *testing.T) {
 
 func TestWaypointService_GetWaypoint(t *testing.T) {
 	tests := []struct {
-		name       string
-		id         int32
-		expectedResult *models.Waypoint
-		expectedError    error
+		name           string
+		id             int32
+		expectedResult *waypoints.Waypoint
+		expectedError  error
 		actualError    error
 	}{
 		{
-			name:       "returns waypoint by id",
-			id:         1,
-			expectedResult: &models.Waypoint{ID: 1, Name: "Alpha", Latitude: 10.0, Longitude: 20.0},
+			name:           "returns waypoint by id",
+			id:             1,
+			expectedResult: &waypoints.Waypoint{ID: 1, Name: "Alpha", Latitude: 10.0, Longitude: 20.0},
 		},
 		{
-			name:    "returns ErrNotFound when repo returns sql.ErrNoRows",
-			id:      -1,
+			name:          "returns ErrNotFound when repo returns sql.ErrNoRows",
+			id:            -1,
 			expectedError: sql.ErrNoRows,
-			actualError: waypoints.ErrNotFound,
+			actualError:   waypoints.ErrNotFound,
 		},
 		{
-			name:    "propagates unexpected repo error",
-			id:      1,
+			name:          "propagates unexpected repo error",
+			id:            1,
 			expectedError: errors.New("db error"),
-			actualError: errors.New("db error"),
+			actualError:   errors.New("db error"),
 		},
 	}
 

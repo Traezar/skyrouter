@@ -10,7 +10,6 @@ import (
 
 	"skyrouter/internal/repo/waypoints"
 	svcwaypoints "skyrouter/internal/service/waypoints"
-	"skyrouter/models"
 )
 
 var testExec waypoints.Executor
@@ -69,7 +68,7 @@ func TestWaypointRepo_List(t *testing.T) {
 		testExec.ExecContext(ctx, "DELETE FROM waypoints WHERE name LIKE 'TST_LST%'")
 	})
 
-	result, err := r.List(ctx)
+	result, err := r.List(ctx, svcwaypoints.ListWaypointsFilter{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -97,14 +96,14 @@ func TestWaypointRepo_GetByID(t *testing.T) {
 		t.Fatalf("setup: failed to insert waypoint: %v", err)
 	}
 
-	all, err := r.List(ctx)
+	all, err := r.List(ctx, svcwaypoints.ListWaypointsFilter{})
 	if err != nil {
 		t.Fatalf("setup: failed to list waypoints: %v", err)
 	}
-	var inserted *models.Waypoint
-	for _, w := range all {
-		if w.Name == name {
-			inserted = w
+	var inserted *svcwaypoints.Waypoint
+	for i := range all {
+		if all[i].Name == name {
+			inserted = &all[i]
 			break
 		}
 	}

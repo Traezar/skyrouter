@@ -8,14 +8,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"skyrouter/internal/service/waypoints"
+	svcwaypoints "skyrouter/internal/service/waypoints"
 )
 
 type WaypointHandler struct {
-	svc *waypoints.WaypointService
+	svc *svcwaypoints.WaypointService
 }
 
-func NewWaypointHandler(svc *waypoints.WaypointService) *WaypointHandler {
+func NewWaypointHandler(svc *svcwaypoints.WaypointService) *WaypointHandler {
 	return &WaypointHandler{svc: svc}
 }
 
@@ -27,13 +27,24 @@ func (h *WaypointHandler) Routes() chi.Router {
 }
 
 func (h *WaypointHandler) ListWaypoints(w http.ResponseWriter, r *http.Request) {
-	waypoints, err := h.svc.ListWaypoints(r.Context())
+	filter := svcwaypoints.ListWaypointsFilter{}
+
+	if v := r.URL.Query().Get("grid"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			http.Error(w, `{"error":"invalid grid param, expected true or false"}`, http.StatusBadRequest)
+			return
+		}
+		filter.Grid = &b
+	}
+
+	result, err := h.svc.ListWaypoints(r.Context(), filter)
 	if err != nil {
 		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(waypoints)
+	json.NewEncoder(w).Encode(result)
 }
 
 func (h *WaypointHandler) GetWaypoint(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +57,7 @@ func (h *WaypointHandler) GetWaypoint(w http.ResponseWriter, r *http.Request) {
 
 	wp, err := h.svc.GetWaypoint(r.Context(), int32(id))
 	if err != nil {
-		if errors.Is(err, waypoints.ErrNotFound) {
+		if errors.Is(err, svcwaypoints.ErrNotFound) {
 			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 			return
 		}
