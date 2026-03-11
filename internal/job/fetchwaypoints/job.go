@@ -14,8 +14,8 @@ import (
 	svcwaypoints "skyrouter/internal/service/waypoints"
 )
 
-// gridPattern matches waypoint names that are exactly 4 digits followed by 'E', e.g. "5790E".
-var gridPattern = regexp.MustCompile(`^\d{4}E$`)
+// allLetters matches waypoint names consisting entirely of letters — these are not grid waypoints.
+var allLetters = regexp.MustCompile(`^[A-Za-z]+$`)
 
 type apiWaypoint struct {
 	Name      string
@@ -48,7 +48,7 @@ func Run(ctx context.Context, deps job.Repos) error {
 			Name:      wp.Name,
 			Latitude:  wp.Latitude,
 			Longitude: wp.Longitude,
-			Grid:      gridPattern.MatchString(wp.Name),
+			Grid:      !allLetters.MatchString(wp.Name),
 		}
 	}
 

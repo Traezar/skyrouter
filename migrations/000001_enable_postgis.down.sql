@@ -1,1 +1,2 @@
-DROP EXTENSION IF EXISTS postgis CASCADE;
+-- Extension removal is intentionally skipped to avoid dropping dependent objects.
+SELECT 1;
