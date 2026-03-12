@@ -50,13 +50,20 @@ func main() {
 	flightSvc := svcflights.NewFlightService(repoFlights.NewFlightRepo(exec))
 	r.Mount("/flights", handler.NewFlightHandler(flightSvc).Routes())
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+	// Liveness: process is alive — no dependency checks.
+	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	// Readiness: dependencies are reachable — used by k8s to gate traffic.
+	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		if err := database.Ping(r.Context()); err != nil {
-			http.Error(w, `{"status":"degraded","db":"unreachable"}`, http.StatusServiceUnavailable)
+			w.Header().Set("Content-Type", "application/json")
+			http.Error(w, `{"status":"not ready","db":"unreachable"}`, http.StatusServiceUnavailable)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
