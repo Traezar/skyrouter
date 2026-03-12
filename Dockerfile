@@ -18,7 +18,12 @@ ARG TARGETARCH=amd64
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -ldflags="-s -w" -o /out/server ./cmd/server
 
-# ── Stage 4: final — minimal distroless runtime image ────────────────────────
+# ── Stage 4: migrate — bundles golang-migrate + migrations for init container ─
+FROM migrate/migrate:v4 AS migrate
+COPY --from=builder /app/migrations /migrations
+ENTRYPOINT ["migrate", "-path=/migrations", "-database"]
+
+# ── Stage 5: final — minimal distroless runtime image ────────────────────────
 FROM gcr.io/distroless/static-debian12 AS final
 COPY --from=release /out/server /server
 EXPOSE 8080
