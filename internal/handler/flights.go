@@ -21,6 +21,7 @@ func NewFlightHandler(svc *flights.FlightService) *FlightHandler {
 func (h *FlightHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.ListFlights)
+
 	return r
 }
 
