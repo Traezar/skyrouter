@@ -55,12 +55,17 @@ jobs:
           LATEST=$REGISTRY/${{ env.ECR_REPO }}:latest
           MIGRATE=$REGISTRY/${{ env.ECR_REPO }}-migrate:${{ github.sha }}
           MIGRATE_LATEST=$REGISTRY/${{ env.ECR_REPO }}-migrate:latest
-          docker build --target final  -t $IMAGE   -t $LATEST        .
-          docker build --target migrate -t $MIGRATE -t $MIGRATE_LATEST .
+          JOB=$REGISTRY/skyrouter-prod-job:${{ github.sha }}
+          JOB_LATEST=$REGISTRY/skyrouter-prod-job:latest
+          docker build --target final   -t $IMAGE          -t $LATEST         .
+          docker build --target migrate -t $MIGRATE        -t $MIGRATE_LATEST .
+          docker build --target final   -t $JOB            -t $JOB_LATEST     -f Dockerfile.job .
           docker push $IMAGE
           docker push $LATEST
           docker push $MIGRATE
           docker push $MIGRATE_LATEST
+          docker push $JOB
+          docker push $JOB_LATEST
           echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Trigger deploy in skyrouter-infra

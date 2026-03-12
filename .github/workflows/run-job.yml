@@ -1,0 +1,43 @@
+name: Run Job
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_name:
+        description: Job to run
+        required: true
+        default: fetch-waypoints
+        type: choice
+        options:
+          - fetch-waypoints
+          - fetch-flights
+
+env:
+  AWS_REGION: ap-southeast-1
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Trigger job in skyrouter-infra
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.INFRA_REPO_PAT }}
+          repository: Traezar/skyrouter-infra
+          event-type: run-job
+          client-payload: |
+            {
+              "job": "${{ inputs.job_name }}",
+              "actor": "${{ github.actor }}"
+            }
