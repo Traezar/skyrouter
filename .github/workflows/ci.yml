@@ -49,10 +49,13 @@ jobs:
 
       - name: Build and push image
         env:
-          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:${{ github.sha }}
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
-          docker build -t $IMAGE .
+          IMAGE=$REGISTRY/${{ env.ECR_REPO }}:${{ github.sha }}
+          LATEST=$REGISTRY/${{ env.ECR_REPO }}:latest
+          docker build -t $IMAGE -t $LATEST .
           docker push $IMAGE
+          docker push $LATEST
           echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Trigger deploy in skyrouter-infra
