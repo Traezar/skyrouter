@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -35,6 +36,7 @@ func (h *FlightHandler) GetFlight(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 			return
 		}
+		slog.Error("GetFlight failed", "id", id, "error", err)
 		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 		return
 	}
