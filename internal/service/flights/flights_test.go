@@ -83,6 +83,9 @@ func TestFlightService_ListFlights(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+			if result == nil {
+				t.Errorf("got nil, want non-nil slice (would encode as JSON null)")
+			}
 			if len(result) != tt.wantLen {
 				t.Errorf("expected %d flights, got %d", tt.wantLen, len(result))
 			}

@@ -183,6 +183,7 @@ func TestFlightRepo_List(t *testing.T) {
 		filter        svcflights.ListFlightsFilter
 		wantMinLen    int
 		wantLen       int // -1 means not checked
+		wantNonNil    bool
 		wantCallsigns []string
 	}{
 		{
@@ -204,9 +205,10 @@ func TestFlightRepo_List(t *testing.T) {
 			wantLen:    -1,
 		},
 		{
-			name:    "unmatched filter returns empty",
-			filter:  svcflights.ListFlightsFilter{Callsign: "ZZZNOTEXIST"},
-			wantLen: 0,
+			name:       "unmatched filter returns empty non-nil slice",
+			filter:     svcflights.ListFlightsFilter{Callsign: "ZZZNOTEXIST"},
+			wantLen:    0,
+			wantNonNil: true,
 		},
 	}
 
@@ -215,6 +217,9 @@ func TestFlightRepo_List(t *testing.T) {
 			got, err := r.List(ctx, tt.filter)
 			if err != nil {
 				t.Fatalf("List() unexpected error: %v", err)
+			}
+			if tt.wantNonNil && got == nil {
+				t.Errorf("List() = nil, want non-nil slice (would encode as JSON null)")
 			}
 			if tt.wantLen >= 0 && len(got) != tt.wantLen {
 				t.Errorf("len(List()) = %d, want %d", len(got), tt.wantLen)

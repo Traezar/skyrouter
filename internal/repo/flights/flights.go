@@ -394,7 +394,7 @@ LEFT JOIN waypoints w ON w.name = fre.waypoint_name`
 	defer rows.Close()
 
 	// index tracks insertion order so flights stay sorted as returned by the query.
-	var result []svcflights.Flight
+	result := []svcflights.Flight{}
 	index := map[string]int{}
 
 	for rows.Next() {
