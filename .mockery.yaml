@@ -6,3 +6,6 @@ packages:
   skyrouter/internal/service/waypoints:
     interfaces:
       WaypointRepository:
+  skyrouter/internal/service/flights:
+    interfaces:
+      FlightRepository:

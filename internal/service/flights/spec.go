@@ -43,4 +43,5 @@ type ListFlightsFilter struct {
 //go:generate go tool mockery --name=FlightRepository
 type FlightRepository interface {
 	List(ctx context.Context, filter ListFlightsFilter) ([]Flight, error)
+	GetByID(ctx context.Context, id string) (*Flight, error)
 }

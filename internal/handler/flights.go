@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -21,8 +23,23 @@ func NewFlightHandler(svc *flights.FlightService) *FlightHandler {
 func (h *FlightHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.ListFlights)
-
+	r.Get("/{id}", h.GetFlight)
 	return r
+}
+
+func (h *FlightHandler) GetFlight(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	flight, err := h.svc.GetFlight(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(flight)
 }
 
 func (h *FlightHandler) ListFlights(w http.ResponseWriter, r *http.Request) {

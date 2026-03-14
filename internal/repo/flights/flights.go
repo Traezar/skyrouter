@@ -3,12 +3,17 @@ package flights
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/lib/pq"
+	"github.com/stephenafamo/bob/dialect/psql"
+	"github.com/stephenafamo/bob/dialect/psql/sm"
 
 	svcflights "skyrouter/internal/service/flights"
+	"skyrouter/models"
 )
 
 type FlightRepo struct {
@@ -198,6 +203,128 @@ func (r *FlightRepo) insertRouteElementsChunk(ctx context.Context, versionID uui
 		return fmt.Errorf("insert elements: %w", err)
 	}
 	return nil
+}
+
+func (r *FlightRepo) GetByID(ctx context.Context, id string) (*svcflights.Flight, error) {
+	uid, err := uuid.FromString(id)
+	if err != nil {
+		return nil, sql.ErrNoRows
+	}
+
+	// 1. Fetch the flight row.
+	mf, err := models.FindFlight(ctx, r.db, uid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, err
+	}
+
+	// 2. Fetch the latest route version.
+	rv, err := models.FlightRouteVersions.Query(
+		sm.Where(psql.Quote("flight_route_versions", "flight_id").EQ(psql.Arg(uid))),
+		sm.OrderBy(psql.Quote("flight_route_versions", "version")).Desc(),
+		sm.Limit(1),
+	).One(ctx, r.db)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	// 3. Fetch route elements for that version (empty slice if no version).
+	var elements []*models.FlightRouteElement
+	if rv != nil {
+		elements, err = models.FlightRouteElements.Query(
+			sm.Where(psql.Quote("flight_route_elements", "route_version_id").EQ(psql.Arg(rv.ID))),
+			sm.OrderBy(psql.Quote("flight_route_elements", "seq_num")),
+		).All(ctx, r.db)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// 4. Bulk-fetch waypoints for lat/lon enrichment.
+	wpMap := map[string]struct{ lat, lon float64 }{}
+	if len(elements) > 0 {
+		names := make([]string, 0, len(elements))
+		seen := map[string]bool{}
+		for _, el := range elements {
+			if !seen[el.WaypointName] {
+				names = append(names, el.WaypointName)
+				seen[el.WaypointName] = true
+			}
+		}
+		wpRows, err := r.db.QueryContext(ctx,
+			`SELECT name, latitude, longitude FROM waypoints WHERE name = ANY($1)`,
+			pq.Array(names),
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer wpRows.Close()
+		for wpRows.Next() {
+			var name string
+			var lat, lon float64
+			if err := wpRows.Scan(&name, &lat, &lon); err != nil {
+				return nil, err
+			}
+			wpMap[name] = struct{ lat, lon float64 }{lat, lon}
+		}
+		if err := wpRows.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	// 5. Map to service model.
+	f := &svcflights.Flight{
+		ID:                   mf.ID.String(),
+		Callsign:             mf.Callsign,
+		DepartureAerodrome:   mf.DepartureAerodrome,
+		DateOfFlight:         mf.DateOfFlight,
+		DestinationAerodrome: mf.DestinationAerodrome,
+		Route:                make([]svcflights.RouteElement, 0, len(elements)),
+	}
+	if mf.FlightType.IsValue() {
+		v := mf.FlightType.MustGet()
+		f.FlightType = &v
+	}
+	if mf.Operator.IsValue() {
+		v := mf.Operator.MustGet()
+		f.Operator = &v
+	}
+	if mf.AircraftType.IsValue() {
+		v := mf.AircraftType.MustGet()
+		f.AircraftType = &v
+	}
+	if mf.AircraftRegistration.IsValue() {
+		v := mf.AircraftRegistration.MustGet()
+		f.AircraftRegistration = &v
+	}
+	if mf.ScheduledDepartureAt.IsValue() {
+		v := mf.ScheduledDepartureAt.MustGet()
+		f.ScheduledDepartureAt = &v
+	}
+	if mf.ScheduledArrivalAt.IsValue() {
+		v := mf.ScheduledArrivalAt.MustGet()
+		f.ScheduledArrivalAt = &v
+	}
+
+	for _, el := range elements {
+		re := svcflights.RouteElement{
+			SeqNum:       int(el.SeqNum),
+			WaypointName: el.WaypointName,
+		}
+		if el.Airway.IsValue() {
+			v := el.Airway.MustGet()
+			re.Airway = &v
+		}
+		if wp, ok := wpMap[el.WaypointName]; ok {
+			re.Latitude = &wp.lat
+			re.Longitude = &wp.lon
+		}
+		f.Route = append(f.Route, re)
+	}
+
+	return f, nil
 }
 
 func (r *FlightRepo) List(ctx context.Context, filter svcflights.ListFlightsFilter) ([]svcflights.Flight, error) {
