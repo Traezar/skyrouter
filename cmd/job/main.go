@@ -14,6 +14,7 @@ import (
 	"skyrouter/internal/job"
 	"skyrouter/internal/job/fetchflights"
 	"skyrouter/internal/job/fetchwaypoints"
+	"skyrouter/internal/job/rebuildedges"
 	repoFlights "skyrouter/internal/repo/flights"
 	repoWaypoints "skyrouter/internal/repo/waypoints"
 )
@@ -21,6 +22,7 @@ import (
 var registry = map[string]job.Runner{
 	"fetch-waypoints": fetchwaypoints.Run,
 	"fetch-flights":   fetchflights.Run,
+	"rebuild-edges":   rebuildedges.Run,
 }
 
 func main() {

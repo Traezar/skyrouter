@@ -5,6 +5,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -18,6 +19,9 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 	"github.com/stephenafamo/bob/dialect/psql/um"
 	"github.com/stephenafamo/bob/expr"
+	"github.com/stephenafamo/bob/mods"
+	"github.com/stephenafamo/bob/orm"
+	"github.com/stephenafamo/bob/types/pgtypes"
 )
 
 // Waypoint is an object representing the database table.
@@ -30,6 +34,8 @@ type Waypoint struct {
 	CreatedAt time.Time        `db:"created_at" `
 	UpdatedAt time.Time        `db:"updated_at" `
 	Grid      bool             `db:"grid" `
+
+	R waypointR `db:"-" `
 }
 
 // WaypointSlice is an alias for a slice of pointers to Waypoint.
@@ -41,6 +47,12 @@ var Waypoints = psql.NewTablex[*Waypoint, WaypointSlice, *WaypointSetter]("", "w
 
 // WaypointsQuery is a query on the waypoints table
 type WaypointsQuery = *psql.ViewQuery[*Waypoint, WaypointSlice]
+
+// waypointR is where relationships are stored.
+type waypointR struct {
+	FromNameWaypointEdges WaypointEdgeSlice // waypoint_edges.waypoint_edges_from_name_fkey
+	ToNameWaypointEdges   WaypointEdgeSlice // waypoint_edges.waypoint_edges_to_name_fkey
+}
 
 func buildWaypointColumns(alias string) waypointColumns {
 	return waypointColumns{
@@ -333,6 +345,7 @@ func (o *Waypoint) Update(ctx context.Context, exec bob.Executor, s *WaypointSet
 		return err
 	}
 
+	o.R = v.R
 	*o = *v
 
 	return nil
@@ -352,7 +365,7 @@ func (o *Waypoint) Reload(ctx context.Context, exec bob.Executor) error {
 	if err != nil {
 		return err
 	}
-
+	o2.R = o.R
 	*o = *o2
 
 	return nil
@@ -399,7 +412,7 @@ func (o WaypointSlice) copyMatchingRows(from ...*Waypoint) {
 			if new.ID != old.ID {
 				continue
 			}
-
+			new.R = old.R
 			o[i] = new
 			break
 		}
@@ -497,6 +510,190 @@ func (o WaypointSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 	return nil
 }
 
+// FromNameWaypointEdges starts a query for related objects on waypoint_edges
+func (o *Waypoint) FromNameWaypointEdges(mods ...bob.Mod[*dialect.SelectQuery]) WaypointEdgesQuery {
+	return WaypointEdges.Query(append(mods,
+		sm.Where(WaypointEdges.Columns.FromName.EQ(psql.Arg(o.Name))),
+	)...)
+}
+
+func (os WaypointSlice) FromNameWaypointEdges(mods ...bob.Mod[*dialect.SelectQuery]) WaypointEdgesQuery {
+	pkName := make(pgtypes.Array[string], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkName = append(pkName, o.Name)
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkName), "character varying[]")),
+	))
+
+	return WaypointEdges.Query(append(mods,
+		sm.Where(psql.Group(WaypointEdges.Columns.FromName).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// ToNameWaypointEdges starts a query for related objects on waypoint_edges
+func (o *Waypoint) ToNameWaypointEdges(mods ...bob.Mod[*dialect.SelectQuery]) WaypointEdgesQuery {
+	return WaypointEdges.Query(append(mods,
+		sm.Where(WaypointEdges.Columns.ToName.EQ(psql.Arg(o.Name))),
+	)...)
+}
+
+func (os WaypointSlice) ToNameWaypointEdges(mods ...bob.Mod[*dialect.SelectQuery]) WaypointEdgesQuery {
+	pkName := make(pgtypes.Array[string], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkName = append(pkName, o.Name)
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkName), "character varying[]")),
+	))
+
+	return WaypointEdges.Query(append(mods,
+		sm.Where(psql.Group(WaypointEdges.Columns.ToName).OP("IN", PKArgExpr)),
+	)...)
+}
+
+func insertWaypointFromNameWaypointEdges0(ctx context.Context, exec bob.Executor, waypointEdges1 []*WaypointEdgeSetter, waypoint0 *Waypoint) (WaypointEdgeSlice, error) {
+	for i := range waypointEdges1 {
+		waypointEdges1[i].FromName = omit.From(waypoint0.Name)
+	}
+
+	ret, err := WaypointEdges.Insert(bob.ToMods(waypointEdges1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertWaypointFromNameWaypointEdges0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachWaypointFromNameWaypointEdges0(ctx context.Context, exec bob.Executor, count int, waypointEdges1 WaypointEdgeSlice, waypoint0 *Waypoint) (WaypointEdgeSlice, error) {
+	setter := &WaypointEdgeSetter{
+		FromName: omit.From(waypoint0.Name),
+	}
+
+	err := waypointEdges1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachWaypointFromNameWaypointEdges0: %w", err)
+	}
+
+	return waypointEdges1, nil
+}
+
+func (waypoint0 *Waypoint) InsertFromNameWaypointEdges(ctx context.Context, exec bob.Executor, related ...*WaypointEdgeSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	waypointEdges1, err := insertWaypointFromNameWaypointEdges0(ctx, exec, related, waypoint0)
+	if err != nil {
+		return err
+	}
+
+	waypoint0.R.FromNameWaypointEdges = append(waypoint0.R.FromNameWaypointEdges, waypointEdges1...)
+
+	for _, rel := range waypointEdges1 {
+		rel.R.FromNameWaypoint = waypoint0
+	}
+	return nil
+}
+
+func (waypoint0 *Waypoint) AttachFromNameWaypointEdges(ctx context.Context, exec bob.Executor, related ...*WaypointEdge) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	waypointEdges1 := WaypointEdgeSlice(related)
+
+	_, err = attachWaypointFromNameWaypointEdges0(ctx, exec, len(related), waypointEdges1, waypoint0)
+	if err != nil {
+		return err
+	}
+
+	waypoint0.R.FromNameWaypointEdges = append(waypoint0.R.FromNameWaypointEdges, waypointEdges1...)
+
+	for _, rel := range related {
+		rel.R.FromNameWaypoint = waypoint0
+	}
+
+	return nil
+}
+
+func insertWaypointToNameWaypointEdges0(ctx context.Context, exec bob.Executor, waypointEdges1 []*WaypointEdgeSetter, waypoint0 *Waypoint) (WaypointEdgeSlice, error) {
+	for i := range waypointEdges1 {
+		waypointEdges1[i].ToName = omit.From(waypoint0.Name)
+	}
+
+	ret, err := WaypointEdges.Insert(bob.ToMods(waypointEdges1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertWaypointToNameWaypointEdges0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachWaypointToNameWaypointEdges0(ctx context.Context, exec bob.Executor, count int, waypointEdges1 WaypointEdgeSlice, waypoint0 *Waypoint) (WaypointEdgeSlice, error) {
+	setter := &WaypointEdgeSetter{
+		ToName: omit.From(waypoint0.Name),
+	}
+
+	err := waypointEdges1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachWaypointToNameWaypointEdges0: %w", err)
+	}
+
+	return waypointEdges1, nil
+}
+
+func (waypoint0 *Waypoint) InsertToNameWaypointEdges(ctx context.Context, exec bob.Executor, related ...*WaypointEdgeSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	waypointEdges1, err := insertWaypointToNameWaypointEdges0(ctx, exec, related, waypoint0)
+	if err != nil {
+		return err
+	}
+
+	waypoint0.R.ToNameWaypointEdges = append(waypoint0.R.ToNameWaypointEdges, waypointEdges1...)
+
+	for _, rel := range waypointEdges1 {
+		rel.R.ToNameWaypoint = waypoint0
+	}
+	return nil
+}
+
+func (waypoint0 *Waypoint) AttachToNameWaypointEdges(ctx context.Context, exec bob.Executor, related ...*WaypointEdge) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	waypointEdges1 := WaypointEdgeSlice(related)
+
+	_, err = attachWaypointToNameWaypointEdges0(ctx, exec, len(related), waypointEdges1, waypoint0)
+	if err != nil {
+		return err
+	}
+
+	waypoint0.R.ToNameWaypointEdges = append(waypoint0.R.ToNameWaypointEdges, waypointEdges1...)
+
+	for _, rel := range related {
+		rel.R.ToNameWaypoint = waypoint0
+	}
+
+	return nil
+}
+
 type waypointWhere[Q psql.Filterable] struct {
 	ID        psql.WhereMod[Q, int32]
 	Name      psql.WhereMod[Q, string]
@@ -522,5 +719,245 @@ func buildWaypointWhere[Q psql.Filterable](cols waypointColumns) waypointWhere[Q
 		CreatedAt: psql.Where[Q, time.Time](cols.CreatedAt),
 		UpdatedAt: psql.Where[Q, time.Time](cols.UpdatedAt),
 		Grid:      psql.Where[Q, bool](cols.Grid),
+	}
+}
+
+func (o *Waypoint) Preload(name string, retrieved any) error {
+	if o == nil {
+		return nil
+	}
+
+	switch name {
+	case "FromNameWaypointEdges":
+		rels, ok := retrieved.(WaypointEdgeSlice)
+		if !ok {
+			return fmt.Errorf("waypoint cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.FromNameWaypointEdges = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.FromNameWaypoint = o
+			}
+		}
+		return nil
+	case "ToNameWaypointEdges":
+		rels, ok := retrieved.(WaypointEdgeSlice)
+		if !ok {
+			return fmt.Errorf("waypoint cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.ToNameWaypointEdges = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.ToNameWaypoint = o
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("waypoint has no relationship %q", name)
+	}
+}
+
+type waypointPreloader struct{}
+
+func buildWaypointPreloader() waypointPreloader {
+	return waypointPreloader{}
+}
+
+type waypointThenLoader[Q orm.Loadable] struct {
+	FromNameWaypointEdges func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	ToNameWaypointEdges   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+}
+
+func buildWaypointThenLoader[Q orm.Loadable]() waypointThenLoader[Q] {
+	type FromNameWaypointEdgesLoadInterface interface {
+		LoadFromNameWaypointEdges(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type ToNameWaypointEdgesLoadInterface interface {
+		LoadToNameWaypointEdges(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+
+	return waypointThenLoader[Q]{
+		FromNameWaypointEdges: thenLoadBuilder[Q](
+			"FromNameWaypointEdges",
+			func(ctx context.Context, exec bob.Executor, retrieved FromNameWaypointEdgesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadFromNameWaypointEdges(ctx, exec, mods...)
+			},
+		),
+		ToNameWaypointEdges: thenLoadBuilder[Q](
+			"ToNameWaypointEdges",
+			func(ctx context.Context, exec bob.Executor, retrieved ToNameWaypointEdgesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadToNameWaypointEdges(ctx, exec, mods...)
+			},
+		),
+	}
+}
+
+// LoadFromNameWaypointEdges loads the waypoint's FromNameWaypointEdges into the .R struct
+func (o *Waypoint) LoadFromNameWaypointEdges(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.FromNameWaypointEdges = nil
+
+	related, err := o.FromNameWaypointEdges(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.FromNameWaypoint = o
+	}
+
+	o.R.FromNameWaypointEdges = related
+	return nil
+}
+
+// LoadFromNameWaypointEdges loads the waypoint's FromNameWaypointEdges into the .R struct
+func (os WaypointSlice) LoadFromNameWaypointEdges(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	waypointEdges, err := os.FromNameWaypointEdges(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		o.R.FromNameWaypointEdges = nil
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		for _, rel := range waypointEdges {
+
+			if !(o.Name == rel.FromName) {
+				continue
+			}
+
+			rel.R.FromNameWaypoint = o
+
+			o.R.FromNameWaypointEdges = append(o.R.FromNameWaypointEdges, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadToNameWaypointEdges loads the waypoint's ToNameWaypointEdges into the .R struct
+func (o *Waypoint) LoadToNameWaypointEdges(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.ToNameWaypointEdges = nil
+
+	related, err := o.ToNameWaypointEdges(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.ToNameWaypoint = o
+	}
+
+	o.R.ToNameWaypointEdges = related
+	return nil
+}
+
+// LoadToNameWaypointEdges loads the waypoint's ToNameWaypointEdges into the .R struct
+func (os WaypointSlice) LoadToNameWaypointEdges(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	waypointEdges, err := os.ToNameWaypointEdges(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		o.R.ToNameWaypointEdges = nil
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		for _, rel := range waypointEdges {
+
+			if !(o.Name == rel.ToName) {
+				continue
+			}
+
+			rel.R.ToNameWaypoint = o
+
+			o.R.ToNameWaypointEdges = append(o.R.ToNameWaypointEdges, rel)
+		}
+	}
+
+	return nil
+}
+
+type waypointJoins[Q dialect.Joinable] struct {
+	typ                   string
+	FromNameWaypointEdges modAs[Q, waypointEdgeColumns]
+	ToNameWaypointEdges   modAs[Q, waypointEdgeColumns]
+}
+
+func (j waypointJoins[Q]) aliasedAs(alias string) waypointJoins[Q] {
+	return buildWaypointJoins[Q](buildWaypointColumns(alias), j.typ)
+}
+
+func buildWaypointJoins[Q dialect.Joinable](cols waypointColumns, typ string) waypointJoins[Q] {
+	return waypointJoins[Q]{
+		typ: typ,
+		FromNameWaypointEdges: modAs[Q, waypointEdgeColumns]{
+			c: WaypointEdges.Columns,
+			f: func(to waypointEdgeColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, WaypointEdges.Name().As(to.Alias())).On(
+						to.FromName.EQ(cols.Name),
+					))
+				}
+
+				return mods
+			},
+		},
+		ToNameWaypointEdges: modAs[Q, waypointEdgeColumns]{
+			c: WaypointEdges.Columns,
+			f: func(to waypointEdgeColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, WaypointEdges.Name().As(to.Alias())).On(
+						to.ToName.EQ(cols.Name),
+					))
+				}
+
+				return mods
+			},
+		},
 	}
 }

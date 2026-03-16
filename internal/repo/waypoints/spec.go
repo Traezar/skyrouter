@@ -14,6 +14,7 @@ type WaypointRepository interface {
 	List(ctx context.Context, filter svcwaypoints.ListWaypointsFilter) ([]svcwaypoints.Waypoint, error)
 	GetByID(ctx context.Context, id int32) (*svcwaypoints.Waypoint, error)
 	BulkUpsert(ctx context.Context, inputs []svcwaypoints.UpsertWaypointInput) error
+	RebuildEdges(ctx context.Context) error
 }
 
 // Executor is the database interface WaypointRepo depends on.

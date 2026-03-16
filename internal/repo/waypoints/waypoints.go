@@ -92,23 +92,65 @@ func (r *WaypointRepo) BulkUpsert(ctx context.Context, inputs []svcwaypoints.Ups
 	return nil
 }
 
+// RebuildEdges truncates and repopulates waypoint_edges from the current
+// waypoints table using a PostGIS spatial join (500 km radius, 3 neighbours, non-grid only).
+// Called by the fetch-waypoints job after every bulk upsert.
+func (r *WaypointRepo) RebuildEdges(ctx context.Context) error {
+	// Backfill location for any rows missing it (idempotent).
+	if _, err := r.db.ExecContext(ctx, `
+		UPDATE waypoints
+		SET location = ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography
+		WHERE location IS NULL
+	`); err != nil {
+		return err
+	}
+
+	// Ensure the GiST index exists — fast no-op if already present.
+	if _, err := r.db.ExecContext(ctx,
+		`CREATE INDEX IF NOT EXISTS waypoints_location_gist ON waypoints USING GIST (location)`,
+	); err != nil {
+		return err
+	}
+
+	_, err := r.db.ExecContext(ctx, `
+		TRUNCATE waypoint_edges;
+
+		INSERT INTO waypoint_edges (from_name, to_name, distance_m)
+		SELECT a.name, near.name, near.dist
+		FROM waypoints a
+		CROSS JOIN LATERAL (
+		    SELECT b.name, ST_Distance(a.location, b.location) AS dist
+		    FROM waypoints b
+		    WHERE b.name != a.name
+		      AND b.grid = false
+		      AND ST_DWithin(a.location, b.location, 500000)
+		    ORDER BY dist
+		    LIMIT 3
+		) near
+		WHERE a.grid = false;
+	`)
+	return err
+}
+
 func (r *WaypointRepo) bulkUpsertChunk(ctx context.Context, inputs []svcwaypoints.UpsertWaypointInput) error {
 	var sb strings.Builder
 	args := make([]any, 0, len(inputs)*4)
 
-	sb.WriteString("INSERT INTO waypoints (name, latitude, longitude, grid) VALUES ")
+	sb.WriteString("INSERT INTO waypoints (name, latitude, longitude, grid, location) VALUES ")
 	for i, input := range inputs {
 		if i > 0 {
 			sb.WriteByte(',')
 		}
 		n := i*4 + 1
-		fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d)", n, n+1, n+2, n+3)
+		// location is derived from the same lat/lon params — no extra arg needed.
+		fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d,ST_SetSRID(ST_MakePoint($%d,$%d),4326)::geography)", n, n+1, n+2, n+3, n+2, n+1)
 		args = append(args, input.Name, input.Latitude, input.Longitude, input.Grid)
 	}
 	sb.WriteString(` ON CONFLICT (name) DO UPDATE SET ` +
 		`"latitude" = EXCLUDED."latitude", ` +
 		`"longitude" = EXCLUDED."longitude", ` +
 		`"grid" = EXCLUDED."grid", ` +
+		`"location" = EXCLUDED."location", ` +
 		`"updated_at" = NOW()`)
 
 	_, err := r.db.ExecContext(ctx, sb.String(), args...)

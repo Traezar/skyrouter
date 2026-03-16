@@ -16,6 +16,7 @@ import (
 
 	"skyrouter/internal/config"
 	"skyrouter/internal/db"
+	"skyrouter/internal/graph"
 	"skyrouter/internal/handler"
 	repoFlights "skyrouter/internal/repo/flights"
 	waypointrepo "skyrouter/internal/repo/waypoints"
@@ -40,12 +41,12 @@ func main() {
 
 	cfg := config.Load()
 
-	database, err := db.Connect(cfg.Database)
+	pool, err := db.Connect(cfg.Database)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer database.Close()
+	defer pool.Close()
 	slog.Info("database connected", "host", cfg.Database.Host, "name", cfg.Database.Name)
 
 	r := chi.NewRouter()
@@ -59,7 +60,7 @@ func main() {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		if err := database.Ping(r.Context()); err != nil {
+		if err := pool.Ping(r.Context()); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			http.Error(w, `{"status":"not ready","db":"unreachable"}`, http.StatusServiceUnavailable)
 			return
@@ -68,7 +69,10 @@ func main() {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	exec := bobpgx.NewPool(database)
+	exec := bobpgx.NewPool(pool)
+
+	// Graph cache — reloads the pre-built waypoint_edges table every 24 hours.
+	graphCache := graph.NewCache(pool, 24*time.Hour)
 
 	// API routes get request logging.
 	r.Group(func(r chi.Router) {
@@ -78,7 +82,7 @@ func main() {
 		r.Mount("/waypoints", handler.NewWaypointHandler(waypointSvc).Routes())
 
 		flightSvc := svcflights.NewFlightService(repoFlights.NewFlightRepo(exec))
-		r.Mount("/flights", handler.NewFlightHandler(flightSvc).Routes())
+		r.Mount("/flights", handler.NewFlightHandler(flightSvc, graphCache).Routes())
 	})
 
 	srv := &http.Server{

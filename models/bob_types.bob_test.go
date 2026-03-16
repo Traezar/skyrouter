@@ -38,6 +38,9 @@ var _ bob.HookableType = &SchemaMigration{}
 // Make sure the type SpatialRefSy runs hooks after queries
 var _ bob.HookableType = &SpatialRefSy{}
 
+// Make sure the type WaypointEdge runs hooks after queries
+var _ bob.HookableType = &WaypointEdge{}
+
 // Make sure the type Waypoint runs hooks after queries
 var _ bob.HookableType = &Waypoint{}
 

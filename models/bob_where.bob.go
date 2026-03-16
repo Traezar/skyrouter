@@ -24,6 +24,7 @@ func Where[Q psql.Filterable]() struct {
 	GeometryColumns     geometryColumnWhere[Q]
 	SchemaMigrations    schemaMigrationWhere[Q]
 	SpatialRefSys       spatialRefSyWhere[Q]
+	WaypointEdges       waypointEdgeWhere[Q]
 	Waypoints           waypointWhere[Q]
 } {
 	return struct {
@@ -34,6 +35,7 @@ func Where[Q psql.Filterable]() struct {
 		GeometryColumns     geometryColumnWhere[Q]
 		SchemaMigrations    schemaMigrationWhere[Q]
 		SpatialRefSys       spatialRefSyWhere[Q]
+		WaypointEdges       waypointEdgeWhere[Q]
 		Waypoints           waypointWhere[Q]
 	}{
 		FlightRouteElements: buildFlightRouteElementWhere[Q](FlightRouteElements.Columns),
@@ -43,6 +45,7 @@ func Where[Q psql.Filterable]() struct {
 		GeometryColumns:     buildGeometryColumnWhere[Q](GeometryColumns.Columns),
 		SchemaMigrations:    buildSchemaMigrationWhere[Q](SchemaMigrations.Columns),
 		SpatialRefSys:       buildSpatialRefSyWhere[Q](SpatialRefSys.Columns),
+		WaypointEdges:       buildWaypointEdgeWhere[Q](WaypointEdges.Columns),
 		Waypoints:           buildWaypointWhere[Q](Waypoints.Columns),
 	}
 }

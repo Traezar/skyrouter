@@ -26,36 +26,55 @@ type apiWaypoint struct {
 var httpClient = &http.Client{Timeout: 15 * time.Second}
 
 func Run(ctx context.Context, deps job.Repos) error {
-	endpointURL := os.Getenv("WAYPOINTS_ENDPOINT")
-	if endpointURL == "" {
-		return fmt.Errorf("WAYPOINTS_ENDPOINT env var is required")
-	}
-
 	apiKey := os.Getenv("WAYPOINTS_API_KEY")
 	if apiKey == "" {
 		return fmt.Errorf("WAYPOINTS_API_KEY env var is required")
 	}
 
-	fetched, err := fetchWaypoints(ctx, endpointURL, apiKey)
-	if err != nil {
-		return fmt.Errorf("fetch waypoints: %w", err)
+	fixesURL := os.Getenv("WAYPOINTS_ENDPOINT")
+	if fixesURL == "" {
+		return fmt.Errorf("WAYPOINTS_ENDPOINT env var is required")
 	}
-	slog.Info("fetched waypoints", "count", len(fetched), "url", endpointURL)
 
-	inputs := make([]svcwaypoints.UpsertWaypointInput, len(fetched))
-	for i, wp := range fetched {
-		inputs[i] = svcwaypoints.UpsertWaypointInput{
+	navaidsURL := os.Getenv("NAVAIDS_ENDPOINT")
+	if navaidsURL == "" {
+		return fmt.Errorf("NAVAIDS_ENDPOINT env var is required")
+	}
+
+	fixes, err := fetchWaypoints(ctx, fixesURL, apiKey)
+	if err != nil {
+		return fmt.Errorf("fetch fixes: %w", err)
+	}
+	slog.Info("fetched fixes", "count", len(fixes))
+
+	navaids, err := fetchWaypoints(ctx, navaidsURL, apiKey)
+	if err != nil {
+		return fmt.Errorf("fetch navaids: %w", err)
+	}
+	slog.Info("fetched navaids", "count", len(navaids))
+
+	all := make([]svcwaypoints.UpsertWaypointInput, 0, len(fixes)+len(navaids))
+	for _, wp := range fixes {
+		all = append(all, svcwaypoints.UpsertWaypointInput{
 			Name:      wp.Name,
 			Latitude:  wp.Latitude,
 			Longitude: wp.Longitude,
 			Grid:      !allLetters.MatchString(wp.Name),
-		}
+		})
+	}
+	for _, wp := range navaids {
+		all = append(all, svcwaypoints.UpsertWaypointInput{
+			Name:      wp.Name,
+			Latitude:  wp.Latitude,
+			Longitude: wp.Longitude,
+			Grid:      false, // navaids are named navigation aids, never grid points
+		})
 	}
 
-	if err := deps.Waypoints.BulkUpsert(ctx, inputs); err != nil {
+	if err := deps.Waypoints.BulkUpsert(ctx, all); err != nil {
 		return fmt.Errorf("bulk upsert: %w", err)
 	}
-	slog.Info("sync complete", "total", len(inputs))
+	slog.Info("sync complete", "total", len(all))
 	return nil
 }
 
@@ -93,7 +112,7 @@ func fetchWaypoints(ctx context.Context, url, apiKey string) ([]apiWaypoint, err
 }
 
 // parseWaypoint parses strings in the format "NAME (lat,lon)",
-// e.g. "D090O (42.80,142.01)" or "5790W (-57.00,-90.00)".
+// e.g. "D090O (42.80,142.01)" or "CHW (48.48,0.99)".
 func parseWaypoint(s string) (apiWaypoint, error) {
 	var wp apiWaypoint
 	n, err := fmt.Sscanf(s, "%s (%f,%f)", &wp.Name, &wp.Latitude, &wp.Longitude)

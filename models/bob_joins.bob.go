@@ -35,6 +35,8 @@ type joins[Q dialect.Joinable] struct {
 	FlightRouteElements joinSet[flightRouteElementJoins[Q]]
 	FlightRouteVersions joinSet[flightRouteVersionJoins[Q]]
 	Flights             joinSet[flightJoins[Q]]
+	WaypointEdges       joinSet[waypointEdgeJoins[Q]]
+	Waypoints           joinSet[waypointJoins[Q]]
 }
 
 func buildJoinSet[Q interface{ aliasedAs(string) Q }, C any, F func(C, string) Q](c C, f F) joinSet[Q] {
@@ -50,6 +52,8 @@ func getJoins[Q dialect.Joinable]() joins[Q] {
 		FlightRouteElements: buildJoinSet[flightRouteElementJoins[Q]](FlightRouteElements.Columns, buildFlightRouteElementJoins),
 		FlightRouteVersions: buildJoinSet[flightRouteVersionJoins[Q]](FlightRouteVersions.Columns, buildFlightRouteVersionJoins),
 		Flights:             buildJoinSet[flightJoins[Q]](Flights.Columns, buildFlightJoins),
+		WaypointEdges:       buildJoinSet[waypointEdgeJoins[Q]](WaypointEdges.Columns, buildWaypointEdgeJoins),
+		Waypoints:           buildJoinSet[waypointJoins[Q]](Waypoints.Columns, buildWaypointJoins),
 	}
 }
 
