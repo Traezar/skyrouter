@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,7 +24,18 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	var logLevel slog.Level
+	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
 
 	cfg := config.Load()
@@ -39,24 +51,13 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	exec := bobpgx.NewPool(database)
-
-	waypointSvc := waypoints.NewWaypointService(waypointrepo.NewWaypointRepo(exec))
-	r.Mount("/waypoints", handler.NewWaypointHandler(waypointSvc).Routes())
-
-	flightSvc := svcflights.NewFlightService(repoFlights.NewFlightRepo(exec))
-	r.Mount("/flights", handler.NewFlightHandler(flightSvc).Routes())
-
-	// Liveness: process is alive — no dependency checks.
+	// Health checks have no logger middleware — keeps them out of CloudWatch.
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
-
-	// Readiness: dependencies are reachable — used by k8s to gate traffic.
 	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		if err := database.Ping(r.Context()); err != nil {
 			w.Header().Set("Content-Type", "application/json")
@@ -65,6 +66,19 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	exec := bobpgx.NewPool(database)
+
+	// API routes get request logging.
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Logger)
+
+		waypointSvc := waypoints.NewWaypointService(waypointrepo.NewWaypointRepo(exec))
+		r.Mount("/waypoints", handler.NewWaypointHandler(waypointSvc).Routes())
+
+		flightSvc := svcflights.NewFlightService(repoFlights.NewFlightRepo(exec))
+		r.Mount("/flights", handler.NewFlightHandler(flightSvc).Routes())
 	})
 
 	srv := &http.Server{
