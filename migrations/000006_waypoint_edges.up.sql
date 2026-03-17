@@ -5,4 +5,5 @@ CREATE TABLE waypoint_edges (
     PRIMARY KEY (from_name, to_name)
 );
 
+
 CREATE INDEX waypoint_edges_from_idx ON waypoint_edges (from_name);
