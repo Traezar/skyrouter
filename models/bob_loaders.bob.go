@@ -20,8 +20,6 @@ type preloaders struct {
 	FlightRouteElement flightRouteElementPreloader
 	FlightRouteVersion flightRouteVersionPreloader
 	Flight             flightPreloader
-	WaypointEdge       waypointEdgePreloader
-	Waypoint           waypointPreloader
 }
 
 func getPreloaders() preloaders {
@@ -29,8 +27,6 @@ func getPreloaders() preloaders {
 		FlightRouteElement: buildFlightRouteElementPreloader(),
 		FlightRouteVersion: buildFlightRouteVersionPreloader(),
 		Flight:             buildFlightPreloader(),
-		WaypointEdge:       buildWaypointEdgePreloader(),
-		Waypoint:           buildWaypointPreloader(),
 	}
 }
 
@@ -44,8 +40,6 @@ type thenLoaders[Q orm.Loadable] struct {
 	FlightRouteElement flightRouteElementThenLoader[Q]
 	FlightRouteVersion flightRouteVersionThenLoader[Q]
 	Flight             flightThenLoader[Q]
-	WaypointEdge       waypointEdgeThenLoader[Q]
-	Waypoint           waypointThenLoader[Q]
 }
 
 func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
@@ -53,8 +47,6 @@ func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 		FlightRouteElement: buildFlightRouteElementThenLoader[Q](),
 		FlightRouteVersion: buildFlightRouteVersionThenLoader[Q](),
 		Flight:             buildFlightThenLoader[Q](),
-		WaypointEdge:       buildWaypointEdgeThenLoader[Q](),
-		Waypoint:           buildWaypointThenLoader[Q](),
 	}
 }
 

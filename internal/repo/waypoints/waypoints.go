@@ -3,6 +3,7 @@ package waypoints
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/stephenafamo/bob/dialect/psql"
@@ -66,21 +67,26 @@ func toWaypointSlice(rows models.WaypointSlice) []svcwaypoints.Waypoint {
 
 const bulkChunkSize = 1000
 
-func deduplicateByName(inputs []svcwaypoints.UpsertWaypointInput) []svcwaypoints.UpsertWaypointInput {
-	seen := make(map[string]struct{}, len(inputs))
+func deduplicateByNameAndLocation(inputs []svcwaypoints.UpsertWaypointInput) []svcwaypoints.UpsertWaypointInput {
+	type key struct {
+		name    string
+		lat, lon int64
+	}
+	seen := make(map[key]struct{}, len(inputs))
 	out := make([]svcwaypoints.UpsertWaypointInput, 0, len(inputs))
 	for _, inp := range inputs {
-		if _, ok := seen[inp.Name]; ok {
+		k := key{inp.Name, int64(math.Round(inp.Latitude * 1e4)), int64(math.Round(inp.Longitude * 1e4))}
+		if _, ok := seen[k]; ok {
 			continue
 		}
-		seen[inp.Name] = struct{}{}
+		seen[k] = struct{}{}
 		out = append(out, inp)
 	}
 	return out
 }
 
 func (r *WaypointRepo) BulkUpsert(ctx context.Context, inputs []svcwaypoints.UpsertWaypointInput) error {
-	inputs = deduplicateByName(inputs)
+	inputs = deduplicateByNameAndLocation(inputs)
 	for i := 0; i < len(inputs); i += bulkChunkSize {
 		end := i + bulkChunkSize
 		if end > len(inputs) {
@@ -118,17 +124,25 @@ func (r *WaypointRepo) RebuildEdges(ctx context.Context) error {
 
 		INSERT INTO waypoint_edges (from_name, to_name, distance_m)
 		SELECT a.name, near.name, near.dist
-		FROM waypoints a
+		FROM (
+		    SELECT DISTINCT ON (name) name, location
+		    FROM waypoints
+		    WHERE grid = false
+		    ORDER BY name, updated_at DESC
+		) a
 		CROSS JOIN LATERAL (
 		    SELECT b.name, ST_Distance(a.location, b.location) AS dist
-		    FROM waypoints b
+		    FROM (
+		        SELECT DISTINCT ON (name) name, location
+		        FROM waypoints
+		        WHERE grid = false
+		        ORDER BY name, updated_at DESC
+		    ) b
 		    WHERE b.name != a.name
-		      AND b.grid = false
 		      AND ST_DWithin(a.location, b.location, 500000)
 		    ORDER BY dist
 		    LIMIT 3
-		) near
-		WHERE a.grid = false;
+		) near;
 	`)
 	return err
 }
@@ -147,9 +161,7 @@ func (r *WaypointRepo) bulkUpsertChunk(ctx context.Context, inputs []svcwaypoint
 		fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d,$%d,ST_SetSRID(ST_MakePoint($%d,$%d),4326)::geography)", n, n+1, n+2, n+3, n+4, n+2, n+1)
 		args = append(args, input.Name, input.Latitude, input.Longitude, input.Grid, input.Airport)
 	}
-	sb.WriteString(` ON CONFLICT (name) DO UPDATE SET ` +
-		`"latitude" = EXCLUDED."latitude", ` +
-		`"longitude" = EXCLUDED."longitude", ` +
+	sb.WriteString(` ON CONFLICT (name, ROUND(latitude::numeric, 4), ROUND(longitude::numeric, 4)) DO UPDATE SET ` +
 		`"grid" = EXCLUDED."grid", ` +
 		`"airport" = EXCLUDED."airport", ` +
 		`"location" = EXCLUDED."location", ` +

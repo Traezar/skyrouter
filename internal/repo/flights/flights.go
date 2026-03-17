@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/aarondl/opt/omit"
@@ -234,7 +235,8 @@ func (r *FlightRepo) GetByID(ctx context.Context, id string) (*svcflights.Flight
 	}
 
 	// 4. Bulk-fetch waypoints for lat/lon enrichment (route elements + airports).
-	wpMap := map[string]struct{ lat, lon float64 }{}
+	// Multiple rows may exist per name; collect all candidates then disambiguate by proximity.
+	candidates := map[string][]struct{ lat, lon float64 }{}
 	{
 		names := make([]string, 0, len(elements)+2)
 		seen := map[string]bool{}
@@ -262,8 +264,52 @@ func (r *FlightRepo) GetByID(ctx context.Context, id string) (*svcflights.Flight
 				return nil, err
 			}
 			for _, wp := range wps {
-				wpMap[wp.Name] = struct{ lat, lon float64 }{wp.Latitude, wp.Longitude}
+				candidates[wp.Name] = append(candidates[wp.Name], struct{ lat, lon float64 }{wp.Latitude, wp.Longitude})
 			}
+		}
+	}
+
+	// Resolve candidates to a single position per name using greedy disambiguation.
+	// Step 1: seed with unambiguous waypoints.
+	wpMap := map[string]struct{ lat, lon float64 }{}
+	for name, cs := range candidates {
+		if len(cs) == 1 {
+			wpMap[name] = cs[0]
+		}
+	}
+	// Step 2: forward pass — track position as we move through the route.
+	var prev *struct{ lat, lon float64 }
+	if dep, ok := wpMap[mf.DepartureAerodrome]; ok {
+		prev = &dep
+	}
+	for _, el := range elements {
+		if pos, ok := wpMap[el.WaypointName]; ok {
+			p := pos
+			prev = &p
+			continue
+		}
+		if cs := candidates[el.WaypointName]; len(cs) > 0 && prev != nil {
+			best := closestTo(*prev, cs)
+			wpMap[el.WaypointName] = best
+			prev = &best
+		}
+	}
+	// Step 3: backward pass — resolve anything still missing (no prior anchor going forward).
+	var next *struct{ lat, lon float64 }
+	if dst, ok := wpMap[mf.DestinationAerodrome]; ok {
+		next = &dst
+	}
+	for i := len(elements) - 1; i >= 0; i-- {
+		el := elements[i]
+		if pos, ok := wpMap[el.WaypointName]; ok {
+			p := pos
+			next = &p
+			continue
+		}
+		if cs := candidates[el.WaypointName]; len(cs) > 0 && next != nil {
+			best := closestTo(*next, cs)
+			wpMap[el.WaypointName] = best
+			next = &best
 		}
 	}
 
@@ -479,4 +525,17 @@ LEFT JOIN waypoints w ON w.name = fre.waypoint_name`
 		}
 	}
 	return result, rows.Err()
+}
+
+// closestTo returns the candidate from cs whose position is nearest to ref,
+// using squared Euclidean distance on lat/lon (sufficient for inter-regional disambiguation).
+func closestTo(ref struct{ lat, lon float64 }, cs []struct{ lat, lon float64 }) struct{ lat, lon float64 } {
+	best, bestD := cs[0], math.MaxFloat64
+	for _, c := range cs {
+		d := (c.lat-ref.lat)*(c.lat-ref.lat) + (c.lon-ref.lon)*(c.lon-ref.lon)
+		if d < bestD {
+			bestD, best = d, c
+		}
+	}
+	return best
 }
