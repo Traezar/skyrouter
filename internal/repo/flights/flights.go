@@ -233,10 +233,10 @@ func (r *FlightRepo) GetByID(ctx context.Context, id string) (*svcflights.Flight
 		}
 	}
 
-	// 4. Bulk-fetch waypoints for lat/lon enrichment.
+	// 4. Bulk-fetch waypoints for lat/lon enrichment (route elements + airports).
 	wpMap := map[string]struct{ lat, lon float64 }{}
-	if len(elements) > 0 {
-		names := make([]string, 0, len(elements))
+	{
+		names := make([]string, 0, len(elements)+2)
 		seen := map[string]bool{}
 		for _, el := range elements {
 			if !seen[el.WaypointName] {
@@ -244,18 +244,26 @@ func (r *FlightRepo) GetByID(ctx context.Context, id string) (*svcflights.Flight
 				seen[el.WaypointName] = true
 			}
 		}
-		nameArr := pgtypes.Array[string](names)
-		nameSelect := psql.Select(sm.Columns(
-			psql.F("unnest", psql.Cast(psql.Arg(nameArr), "text[]")),
-		))
-		wps, err := models.Waypoints.Query(
-			sm.Where(psql.Group(models.Waypoints.Columns.Name).OP("IN", nameSelect)),
-		).All(ctx, r.db)
-		if err != nil {
-			return nil, err
+		for _, n := range []string{mf.DepartureAerodrome, mf.DestinationAerodrome} {
+			if !seen[n] {
+				names = append(names, n)
+				seen[n] = true
+			}
 		}
-		for _, wp := range wps {
-			wpMap[wp.Name] = struct{ lat, lon float64 }{wp.Latitude, wp.Longitude}
+		if len(names) > 0 {
+			nameArr := pgtypes.Array[string](names)
+			nameSelect := psql.Select(sm.Columns(
+				psql.F("unnest", psql.Cast(psql.Arg(nameArr), "text[]")),
+			))
+			wps, err := models.Waypoints.Query(
+				sm.Where(psql.Group(models.Waypoints.Columns.Name).OP("IN", nameSelect)),
+			).All(ctx, r.db)
+			if err != nil {
+				return nil, err
+			}
+			for _, wp := range wps {
+				wpMap[wp.Name] = struct{ lat, lon float64 }{wp.Latitude, wp.Longitude}
+			}
 		}
 	}
 
@@ -267,6 +275,14 @@ func (r *FlightRepo) GetByID(ctx context.Context, id string) (*svcflights.Flight
 		DateOfFlight:         mf.DateOfFlight,
 		DestinationAerodrome: mf.DestinationAerodrome,
 		Route:                make([]svcflights.RouteElement, 0, len(elements)),
+	}
+	if dep, ok := wpMap[mf.DepartureAerodrome]; ok {
+		f.DepartureLat = &dep.lat
+		f.DepartureLon = &dep.lon
+	}
+	if dst, ok := wpMap[mf.DestinationAerodrome]; ok {
+		f.DestinationLat = &dst.lat
+		f.DestinationLon = &dst.lon
 	}
 	if mf.FlightType.IsValue() {
 		v := mf.FlightType.MustGet()
