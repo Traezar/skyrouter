@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aarondl/opt/omit"
+	"github.com/aarondl/opt/omitnull"
 	"github.com/gofrs/uuid/v5"
-	"github.com/lib/pq"
+	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/sm"
+	"github.com/stephenafamo/bob/types/pgtypes"
 
 	svcflights "skyrouter/internal/service/flights"
 	"skyrouter/models"
@@ -138,37 +141,25 @@ func (r *FlightRepo) insertRouteVersion(ctx context.Context, flightID uuid.UUID,
 		return err
 	}
 
-	// Insert the route version.
-	versionRows, err := r.db.QueryContext(ctx, `
-INSERT INTO flight_route_versions
-	(flight_id, version, flight_rules, cruising_speed, cruising_level, route_text, total_elapsed_time, fir_estimates)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-RETURNING id`,
-		flightID, nextVersion,
-		route.FlightRules, route.CruisingSpeed, route.CruisingLevel,
-		route.RouteText, route.TotalElapsedTime, route.FirEstimates,
-	)
+	rv, err := models.FlightRouteVersions.Insert(&models.FlightRouteVersionSetter{
+		FlightID:         omit.From(flightID),
+		Version:          omit.From(int32(nextVersion)),
+		FlightRules:      omitnull.FromNull(route.FlightRules),
+		CruisingSpeed:    omitnull.FromNull(route.CruisingSpeed),
+		CruisingLevel:    omitnull.FromNull(route.CruisingLevel),
+		RouteText:        omitnull.FromNull(route.RouteText),
+		TotalElapsedTime: omitnull.FromNull(route.TotalElapsedTime),
+		FirEstimates:     omitnull.FromNull(route.FirEstimates),
+	}).One(ctx, r.db)
 	if err != nil {
 		return fmt.Errorf("insert route version: %w", err)
-	}
-	defer versionRows.Close()
-
-	if !versionRows.Next() {
-		return fmt.Errorf("insert route version returned no id")
-	}
-	var versionID uuid.UUID
-	if err := versionRows.Scan(&versionID); err != nil {
-		return fmt.Errorf("scan route version id: %w", err)
-	}
-	if err := versionRows.Close(); err != nil {
-		return err
 	}
 
 	if len(route.Elements) == 0 {
 		return nil
 	}
 
-	return r.insertRouteElements(ctx, versionID, route.Elements)
+	return r.insertRouteElements(ctx, rv.ID, route.Elements)
 }
 
 func (r *FlightRepo) insertRouteElements(ctx context.Context, versionID uuid.UUID, elements []RouteElementInput) error {
@@ -186,19 +177,19 @@ func (r *FlightRepo) insertRouteElements(ctx context.Context, versionID uuid.UUI
 }
 
 func (r *FlightRepo) insertRouteElementsChunk(ctx context.Context, versionID uuid.UUID, elements []RouteElementInput) error {
-	// Build: INSERT INTO flight_route_elements (...) VALUES ($1,$2,...),(...)
-	query := "INSERT INTO flight_route_elements (route_version_id, seq_num, waypoint_name, airway, airway_type, change_speed, change_level) VALUES "
-	args := make([]any, 0, len(elements)*7)
+	setters := make([]*models.FlightRouteElementSetter, len(elements))
 	for i, el := range elements {
-		if i > 0 {
-			query += ","
+		setters[i] = &models.FlightRouteElementSetter{
+			RouteVersionID: omit.From(versionID),
+			SeqNum:         omit.From(int32(el.SeqNum)),
+			WaypointName:   omit.From(el.WaypointName),
+			Airway:         omitnull.FromNull(el.Airway),
+			AirwayType:     omitnull.FromNull(el.AirwayType),
+			ChangeSpeed:    omitnull.FromNull(el.ChangeSpeed),
+			ChangeLevel:    omitnull.FromNull(el.ChangeLevel),
 		}
-		n := i*7 + 1
-		query += fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d)", n, n+1, n+2, n+3, n+4, n+5, n+6)
-		args = append(args, versionID, el.SeqNum, el.WaypointName, el.Airway, el.AirwayType, el.ChangeSpeed, el.ChangeLevel)
 	}
-
-	_, err := r.db.ExecContext(ctx, query, args...)
+	_, err := models.FlightRouteElements.Insert(bob.ToMods(setters...)).All(ctx, r.db)
 	if err != nil {
 		return fmt.Errorf("insert elements: %w", err)
 	}
@@ -253,24 +244,18 @@ func (r *FlightRepo) GetByID(ctx context.Context, id string) (*svcflights.Flight
 				seen[el.WaypointName] = true
 			}
 		}
-		wpRows, err := r.db.QueryContext(ctx,
-			`SELECT name, latitude, longitude FROM waypoints WHERE name = ANY($1)`,
-			pq.Array(names),
-		)
+		nameArr := pgtypes.Array[string](names)
+		nameSelect := psql.Select(sm.Columns(
+			psql.F("unnest", psql.Cast(psql.Arg(nameArr), "text[]")),
+		))
+		wps, err := models.Waypoints.Query(
+			sm.Where(psql.Group(models.Waypoints.Columns.Name).OP("IN", nameSelect)),
+		).All(ctx, r.db)
 		if err != nil {
 			return nil, err
 		}
-		defer wpRows.Close()
-		for wpRows.Next() {
-			var name string
-			var lat, lon float64
-			if err := wpRows.Scan(&name, &lat, &lon); err != nil {
-				return nil, err
-			}
-			wpMap[name] = struct{ lat, lon float64 }{lat, lon}
-		}
-		if err := wpRows.Err(); err != nil {
-			return nil, err
+		for _, wp := range wps {
+			wpMap[wp.Name] = struct{ lat, lon float64 }{wp.Latitude, wp.Longitude}
 		}
 	}
 

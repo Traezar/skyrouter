@@ -34,6 +34,7 @@ type Waypoint struct {
 	CreatedAt time.Time        `db:"created_at" `
 	UpdatedAt time.Time        `db:"updated_at" `
 	Grid      bool             `db:"grid" `
+	Airport   bool             `db:"airport" `
 
 	R waypointR `db:"-" `
 }
@@ -57,7 +58,7 @@ type waypointR struct {
 func buildWaypointColumns(alias string) waypointColumns {
 	return waypointColumns{
 		ColumnsExpr: expr.NewColumnsExpr(
-			"id", "name", "latitude", "longitude", "location", "created_at", "updated_at", "grid",
+			"id", "name", "latitude", "longitude", "location", "created_at", "updated_at", "grid", "airport",
 		).WithParent("waypoints"),
 		tableAlias: alias,
 		ID:         psql.Quote(alias, "id"),
@@ -68,6 +69,7 @@ func buildWaypointColumns(alias string) waypointColumns {
 		CreatedAt:  psql.Quote(alias, "created_at"),
 		UpdatedAt:  psql.Quote(alias, "updated_at"),
 		Grid:       psql.Quote(alias, "grid"),
+		Airport:    psql.Quote(alias, "airport"),
 	}
 }
 
@@ -82,6 +84,7 @@ type waypointColumns struct {
 	CreatedAt  psql.Expression
 	UpdatedAt  psql.Expression
 	Grid       psql.Expression
+	Airport    psql.Expression
 }
 
 func (c waypointColumns) Alias() string {
@@ -104,10 +107,11 @@ type WaypointSetter struct {
 	CreatedAt omit.Val[time.Time]  `db:"created_at" `
 	UpdatedAt omit.Val[time.Time]  `db:"updated_at" `
 	Grid      omit.Val[bool]       `db:"grid" `
+	Airport   omit.Val[bool]       `db:"airport" `
 }
 
 func (s WaypointSetter) SetColumns() []string {
-	vals := make([]string, 0, 8)
+	vals := make([]string, 0, 9)
 	if s.ID.IsValue() {
 		vals = append(vals, "id")
 	}
@@ -131,6 +135,9 @@ func (s WaypointSetter) SetColumns() []string {
 	}
 	if s.Grid.IsValue() {
 		vals = append(vals, "grid")
+	}
+	if s.Airport.IsValue() {
+		vals = append(vals, "airport")
 	}
 	return vals
 }
@@ -160,6 +167,9 @@ func (s WaypointSetter) Overwrite(t *Waypoint) {
 	if s.Grid.IsValue() {
 		t.Grid = s.Grid.MustGet()
 	}
+	if s.Airport.IsValue() {
+		t.Airport = s.Airport.MustGet()
+	}
 }
 
 func (s *WaypointSetter) Apply(q *dialect.InsertQuery) {
@@ -168,7 +178,7 @@ func (s *WaypointSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 8)
+		vals := make([]bob.Expression, 9)
 		if s.ID.IsValue() {
 			vals[0] = psql.Arg(s.ID.MustGet())
 		} else {
@@ -217,6 +227,12 @@ func (s *WaypointSetter) Apply(q *dialect.InsertQuery) {
 			vals[7] = psql.Raw("DEFAULT")
 		}
 
+		if s.Airport.IsValue() {
+			vals[8] = psql.Arg(s.Airport.MustGet())
+		} else {
+			vals[8] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -226,7 +242,7 @@ func (s WaypointSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s WaypointSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 8)
+	exprs := make([]bob.Expression, 0, 9)
 
 	if s.ID.IsValue() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -281,6 +297,13 @@ func (s WaypointSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "grid")...),
 			psql.Arg(s.Grid),
+		}})
+	}
+
+	if s.Airport.IsValue() {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "airport")...),
+			psql.Arg(s.Airport),
 		}})
 	}
 
@@ -703,6 +726,7 @@ type waypointWhere[Q psql.Filterable] struct {
 	CreatedAt psql.WhereMod[Q, time.Time]
 	UpdatedAt psql.WhereMod[Q, time.Time]
 	Grid      psql.WhereMod[Q, bool]
+	Airport   psql.WhereMod[Q, bool]
 }
 
 func (waypointWhere[Q]) AliasedAs(alias string) waypointWhere[Q] {
@@ -719,6 +743,7 @@ func buildWaypointWhere[Q psql.Filterable](cols waypointColumns) waypointWhere[Q
 		CreatedAt: psql.Where[Q, time.Time](cols.CreatedAt),
 		UpdatedAt: psql.Where[Q, time.Time](cols.UpdatedAt),
 		Grid:      psql.Where[Q, bool](cols.Grid),
+		Airport:   psql.Where[Q, bool](cols.Airport),
 	}
 }
 

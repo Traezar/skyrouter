@@ -7,6 +7,7 @@ type UpsertWaypointInput struct {
 	Latitude  float64
 	Longitude float64
 	Grid      bool
+	Airport   bool
 }
 
 type ListWaypointsFilter struct {
@@ -20,6 +21,7 @@ type Waypoint struct {
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
 	Grid      bool    `json:"grid"`
+	Airport   bool    `json:"airport"`
 }
 
 //go:generate go tool mockery --name=WaypointRepository

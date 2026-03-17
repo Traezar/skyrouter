@@ -1,0 +1,1 @@
+ALTER TABLE waypoints ADD COLUMN airport BOOLEAN NOT NULL DEFAULT false;

@@ -41,6 +41,11 @@ func Run(ctx context.Context, deps job.Repos) error {
 		return fmt.Errorf("NAVAIDS_ENDPOINT env var is required")
 	}
 
+	airportsURL := os.Getenv("AIRPORTS_ENDPOINT")
+	if airportsURL == "" {
+		return fmt.Errorf("AIRPORTS_ENDPOINT env var is required")
+	}
+
 	fixes, err := fetchWaypoints(ctx, fixesURL, apiKey)
 	if err != nil {
 		return fmt.Errorf("fetch fixes: %w", err)
@@ -53,7 +58,13 @@ func Run(ctx context.Context, deps job.Repos) error {
 	}
 	slog.Info("fetched navaids", "count", len(navaids))
 
-	all := make([]svcwaypoints.UpsertWaypointInput, 0, len(fixes)+len(navaids))
+	airports, err := fetchWaypoints(ctx, airportsURL, apiKey)
+	if err != nil {
+		return fmt.Errorf("fetch airports: %w", err)
+	}
+	slog.Info("fetched airports", "count", len(airports))
+
+	all := make([]svcwaypoints.UpsertWaypointInput, 0, len(fixes)+len(navaids)+len(airports))
 	for _, wp := range fixes {
 		all = append(all, svcwaypoints.UpsertWaypointInput{
 			Name:      wp.Name,
@@ -67,7 +78,15 @@ func Run(ctx context.Context, deps job.Repos) error {
 			Name:      wp.Name,
 			Latitude:  wp.Latitude,
 			Longitude: wp.Longitude,
-			Grid:      false, // navaids are named navigation aids, never grid points
+			Grid:      false,
+		})
+	}
+	for _, wp := range airports {
+		all = append(all, svcwaypoints.UpsertWaypointInput{
+			Name:      wp.Name,
+			Latitude:  wp.Latitude,
+			Longitude: wp.Longitude,
+			Airport:   true,
 		})
 	}
 

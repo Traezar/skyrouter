@@ -52,6 +52,7 @@ func toWaypoint(m *models.Waypoint) svcwaypoints.Waypoint {
 		Latitude:  m.Latitude,
 		Longitude: m.Longitude,
 		Grid:      m.Grid,
+		Airport:   m.Airport,
 	}
 }
 
@@ -134,22 +135,23 @@ func (r *WaypointRepo) RebuildEdges(ctx context.Context) error {
 
 func (r *WaypointRepo) bulkUpsertChunk(ctx context.Context, inputs []svcwaypoints.UpsertWaypointInput) error {
 	var sb strings.Builder
-	args := make([]any, 0, len(inputs)*4)
+	args := make([]any, 0, len(inputs)*5)
 
-	sb.WriteString("INSERT INTO waypoints (name, latitude, longitude, grid, location) VALUES ")
+	sb.WriteString("INSERT INTO waypoints (name, latitude, longitude, grid, airport, location) VALUES ")
 	for i, input := range inputs {
 		if i > 0 {
 			sb.WriteByte(',')
 		}
-		n := i*4 + 1
+		n := i*5 + 1
 		// location is derived from the same lat/lon params — no extra arg needed.
-		fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d,ST_SetSRID(ST_MakePoint($%d,$%d),4326)::geography)", n, n+1, n+2, n+3, n+2, n+1)
-		args = append(args, input.Name, input.Latitude, input.Longitude, input.Grid)
+		fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d,$%d,ST_SetSRID(ST_MakePoint($%d,$%d),4326)::geography)", n, n+1, n+2, n+3, n+4, n+2, n+1)
+		args = append(args, input.Name, input.Latitude, input.Longitude, input.Grid, input.Airport)
 	}
 	sb.WriteString(` ON CONFLICT (name) DO UPDATE SET ` +
 		`"latitude" = EXCLUDED."latitude", ` +
 		`"longitude" = EXCLUDED."longitude", ` +
 		`"grid" = EXCLUDED."grid", ` +
+		`"airport" = EXCLUDED."airport", ` +
 		`"location" = EXCLUDED."location", ` +
 		`"updated_at" = NOW()`)
 
